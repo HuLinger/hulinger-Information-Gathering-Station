@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import { Pool } from 'pg';
 
 const databaseURL = process.env.AUTH_TEST_DATABASE_URL ?? process.env.TEST_DATABASE_URL;
@@ -138,8 +139,18 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     await worker?.end();
     await applicationPool?.end();
     await database.end();
-    await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);
-    await admin.query(`DROP ROLE IF EXISTS "${appName}", "${workerName}"`);
-    await admin.end();
+    try {
+      // pg-pool can resolve end() before all socket close callbacks reach PostgreSQL.
+      // Wait for actual disconnects instead of FORCE-killing retiring clients and emitting pool errors.
+      const deadline = Date.now() + 5000;
+      while ((await admin.query('SELECT 1 FROM pg_stat_activity WHERE datname = $1', [name])).rowCount) {
+        if (Date.now() >= deadline) throw new Error('Authentication test database still has connections after pool shutdown.');
+        await delay(25);
+      }
+      await admin.query(`DROP DATABASE "${name}"`);
+      await admin.query(`DROP ROLE IF EXISTS "${appName}", "${workerName}"`);
+    } finally {
+      await admin.end();
+    }
   }
 });

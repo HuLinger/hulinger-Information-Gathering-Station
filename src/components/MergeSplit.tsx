@@ -2,9 +2,9 @@
 
 import { useRef, useState } from 'react';
 import { Alert, Button, Checkbox, Divider, Form, Input, InputNumber, Modal, Select, Space, Tag } from 'antd';
-import type { HubData, HubEvent, Personal } from '../shared/contracts';
+import type { HubEvent, Personal } from '../shared/contracts';
 import type { EventDetailData, SourceRecord } from './EventDetail';
-import { errorMessage, postJson, requestJson, type HubAction } from './api';
+import { errorMessage, postJson, requestHubData, type HubAction } from './api';
 import { stringValue } from './format';
 import { useReturnFocus } from './useReturnFocus';
 
@@ -24,7 +24,7 @@ export function MergeDialog({ initialIds, candidates, act, onClose }: { initialI
   async function search(value: string) {
     const sequence = ++searchSequence.current;
     try {
-      const data = await requestJson<HubData>(`/api/hub?view=search&q=${encodeURIComponent(value)}`);
+      const data = await requestHubData(`/api/hub?view=search&q=${encodeURIComponent(value)}`);
       if (sequence === searchSequence.current) setOptions((current) => [...new Map([...current, ...data.events.filter((event) => event.status === 'active' || event.status === 'review').map((event) => ({ value: event.id, label: event.title }))].map((option) => [option.value, option])).values()]);
     } catch (cause) { setError(errorMessage(cause)); }
   }

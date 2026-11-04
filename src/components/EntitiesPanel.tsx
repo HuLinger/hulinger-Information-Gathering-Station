@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Descriptions, Drawer, Input, Pagination, Select, Skeleton, Space, Tabs, Tag, Timeline } from 'antd';
 import { ArrowRightOutlined, CheckOutlined, ExportOutlined, PlusOutlined, StarOutlined } from '@ant-design/icons';
-import type { Entity, HubData, HubEvent } from '../shared/contracts';
-import { errorMessage, requestJson, type HubAction } from './api';
+import type { Entity, HubEvent } from '../shared/contracts';
+import { errorMessage, requestHubData, type HubAction } from './api';
 import { dateText, EmptyState, ErrorNotice, eventDate, ExternalLink, KindIcon, numberValue, recordValue, stringArray, stringValue } from './format';
 import { useReturnFocus } from './useReturnFocus';
 
@@ -73,7 +73,7 @@ export function EntityDetail({ entity, epoch, act, onClose, onEvent }: { entity:
   const [pending, setPending] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    requestJson<HubData>(`/api/hub?view=feed&entity=${encodeURIComponent(entity.id)}&page=${page}`, { signal: controller.signal }).then((data) => { setEvents(data.events); setTotal(data.total); setError(''); setLoaded(true); }).catch((cause) => { if (!controller.signal.aborted) { setError(errorMessage(cause)); setLoaded(true); } });
+    requestHubData(`/api/hub?view=feed&entity=${encodeURIComponent(entity.id)}&page=${page}`, { signal: controller.signal }).then((data) => { setEvents(data.events); setTotal(data.total); setError(''); setLoaded(true); }).catch((cause) => { if (!controller.signal.aborted) { setError(errorMessage(cause)); setLoaded(true); } });
     return () => controller.abort();
   }, [entity.id, page, epoch]);
   const isProject = entity.kind === 'project';

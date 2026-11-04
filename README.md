@@ -8,7 +8,7 @@
 
 ### 2026-11-04
 
-首版资讯阅读、模型/项目档案、自动采集、个人整理、JSON 导出与双重认证进入实现验证；新增 Docker 私有部署及备份恢复流程。详情见 [发布说明](docs/releases/release-notes.md) 和 [变更记录](CHANGELOG.md)。
+首版资讯阅读、模型/项目档案、自动采集、个人整理、JSON 导出与双重认证进入实现验证；新增 Docker 私有部署及备份恢复流程。完善异常响应重试、搜索状态与键盘焦点恢复。详情见 [发布说明](docs/releases/release-notes.md) 和 [变更记录](CHANGELOG.md)。
 
 ## 首版能力
 
@@ -20,6 +20,10 @@
 - **私有访问**：唯一拥有者、关闭公开注册、密码与验证器双重认证、一次性恢复码、服务端授权。
 
 首版不提供公共社区、多用户协作、任意 URL 抓取、全文镜像、附件上传或导入。摘要来自公开来源及人工整理，未接入付费 AI 生成。GitHub 排序是本站观测范围内的数据，不是官方全站榜单；没有足够真实快照时不虚构增长。
+
+![桌面首页](docs/verification/screenshots/desktop-home.jpg)
+
+本地验收截图含公开来源和合成测试资料；新安装实例初始为空。[手机截图](docs/verification/screenshots/mobile-home.jpg) · [设计验收](design-qa.md) · [测试与部署验证](docs/verification/v1-validation.md)
 
 ## 技术结构
 
