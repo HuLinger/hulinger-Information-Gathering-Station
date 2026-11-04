@@ -1,14 +1,52 @@
 {
   "name": "hulinger-information-hub",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "Repository standards tooling; application stack is not selected yet.",
+  "description": "Hulinger private AI information hub with scheduled collection and Docker self-hosting.",
+  "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "setup": "node scripts/setup-git.mjs",
-    "check": "node scripts/check-repository.mjs",
-    "check:staged": "node scripts/check-repository.mjs --staged"
+    "check": "npm run check:repo && npm run lint && npm run typecheck && npm test",
+    "check:repo": "node scripts/check-repository.mjs",
+    "check:staged": "node scripts/check-repository.mjs --staged",
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "migrate": "tsx scripts/migrate.ts",
+    "owner": "tsx scripts/owner.ts",
+    "owner:create": "tsx scripts/owner.ts create",
+    "owner:recover": "tsx scripts/owner.ts recover",
+    "worker": "tsx src/worker.ts"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.1.0",
+    "@ant-design/nextjs-registry": "^1.3.0",
+    "antd": "6.7.0",
+    "better-auth": "1.7.16",
+    "cheerio": "^1.1.2",
+    "ipaddr.js": "^2.2.0",
+    "next": "16.4.5",
+    "pg": "^8.16.3",
+    "pg-boss": "12.38.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "rss-parser": "^3.13.0",
+    "tsx": "^4.21.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.11",
+    "@types/pg": "^8.15.6",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.4.5",
+    "typescript": "^5.9.3"
   }
 }

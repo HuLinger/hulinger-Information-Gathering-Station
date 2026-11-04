@@ -1,43 +1,174 @@
-# Hulinger 信息集合工具
+# Hulinger AI 资讯中心
 
-面向个人日常使用的私有信息集合工具，以「收集 → 整理 → 查找 → 使用 → 导出」为核心闭环，按正式上线项目的要求建设。
+给自己使用的私有 AI 信息集合工具：自动收集公开模型公告与 GitHub 开源项目，保留可核验来源，在电脑和手机上阅读、查找、整理和导出。
 
-**当前阶段：规范基线。** 已建立本地独立 Git 仓库、协作约定、Ant Design UI 标准、设计令牌、基础检查和上线门禁。尚未实现业务页面、后端或部署；远程仓库与服务器尚未配置。
+**当前状态：首版部署候选。** 提供源码、数据库迁移、Docker Compose、拥有者初始化命令和部署手册。公开代码仓库为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)。网站内容由登录与 MFA 保护。尚未部署到用户服务器；域名、异地备份、告警和目标服务器恢复演练须按 [上线门禁](docs/production-readiness.md) 落实。
 
-## 规范入口
+## 最新更新
 
-| 文件 | 作用 |
-| --- | --- |
-| [AGENTS.md](AGENTS.md) | 后续开发者和自动化代理必须遵守的入口约定 |
-| [项目章程](docs/project-charter.md) | 产品定位、初始范围、阶段验收和变更方式 |
-| [Git 工作流](docs/git-workflow.md) | 主分支、工作分支、提交、合并和版本标签 |
-| [UI 标准](docs/ui-standard.md) | Ant Design、布局、交互、无障碍及验收 |
-| [设计令牌](design/tokens.json) | 颜色、间距、字号等统一数值来源 |
-| [开发规范](docs/engineering.md) | 工程边界、质量检查和完成标准 |
-| [上线门禁](docs/production-readiness.md) | 环境、安全、备份、监控、发布和恢复 |
-| [安全规范](SECURITY.md) | 私有数据、凭据和安全问题处理 |
-| [初始决策](docs/adr/0001-project-baseline.md) | 已定原则、默认选择和待定技术事项 |
+### 2026-11-04
 
-## 本地开始
+首版资讯阅读、模型/项目档案、自动采集、个人整理、JSON 导出与双重认证已完成本地与 CI 验证；Docker 启动、重启及隔离数据库恢复通过。代码仓库按用户要求更名并公开，完善异常响应重试、搜索状态与键盘焦点恢复。详情见 [发布说明](docs/releases/release-notes.md) 和 [变更记录](CHANGELOG.md)。
 
-规范工具使用 Node.js 22 或更高版本及 Git；当前没有第三方 npm 依赖，无需安装业务框架。
+## 首版能力
 
-```powershell
-git rev-parse --show-toplevel
-npm run setup
-npm run check
-git switch -c codex/feat/collect-information
+- **资讯与资料**：首页、资讯列表、模型/产品档案、开源项目档案、搜索、类型/来源/日期/标签筛选。
+- **自动采集**：登记的官方 RSS、GitHub 仓库发现、Release 与 Star 快照；独立 worker 在浏览器关闭后继续执行，记录同步状态与失败原因。
+- **个人整理**：人工补充，修正标题、摘要、分类、标签及关联，私人备注、收藏、稍后读、已读、归档；重采保留人工覆盖。
+- **纠错与删除**：需核对队列、排除与恢复、合并/撤销、来源拆分、修订记录、回收站与 30 天清理。
+- **数据导出**：后台生成带关联及个人状态的 JSON，登录后下载；导出不是数据库备份。
+- **私有访问**：唯一拥有者、关闭公开注册、密码与验证器双重认证、一次性恢复码、服务端授权。
+
+首版不提供公共社区、多用户协作、任意 URL 抓取、全文镜像、附件上传或导入。摘要来自公开来源及人工整理，未接入付费 AI 生成。GitHub 排序是本站观测范围内的数据，不是官方全站榜单；没有足够真实快照时不虚构增长。
+
+![桌面首页](docs/verification/screenshots/desktop-home.jpg)
+
+本地验收截图含公开来源和合成测试资料；新安装实例初始为空。[手机截图](docs/verification/screenshots/mobile-home.jpg) · [设计验收](design-qa.md) · [测试与部署验证](docs/verification/v1-validation.md)
+
+## 技术结构
+
+```text
+浏览器（电脑 / 手机）
+        │ HTTPS :443
+      Caddy
+        │
+  Next.js + Ant Design ── PostgreSQL
+                              │
+                      worker / pg-boss
+                              │ HTTPS
+                    白名单 RSS / GitHub API
 ```
 
-`setup` 只设置本仓库的 Git hooks 与换行策略。`check` 验证仓库边界、必备文件、文本格式、JSON、本地文档链接、常见敏感文件和预设颜色对比度；它不替代业务测试、安全审计或浏览器无障碍检查。新克隆需重新运行 `setup`。
+Next.js、TypeScript、Ant Design、PostgreSQL、Better Auth 与 pg-boss 组成单仓库应用。web 与 worker 使用不同数据库角色；管理员角色只供迁移及账号管理。Docker 仅暴露 Caddy 的 80/443，数据库和应用端口留在容器网络。依赖通过 `package-lock.json` 固定，基础镜像按摘要锁定。取舍见 [ADR 0003](docs/adr/0003-self-hosted-architecture.md)。
 
-`.github/workflows/quality.yml` 提供 GitHub Actions 检查模板。推送到 GitHub 后才能产生远程运行记录；保护分支需在远程单独配置。
+## Docker 安装流程
 
-## 接下来的里程碑
+下列命令面向 **Linux + Bash + Docker Compose v2**。建议首轮验证准备 2 vCPU、4 GiB 内存和至少 20 GiB 可用磁盘；这是测试起点，不是已测容量保证。需要解析到服务器的域名、入站 TCP 80/443（HTTP/3 可另开 UDP 443），以及访问 GitHub、镜像源、证书服务和采集来源的出站 HTTPS。服务器时间须同步。
 
-1. 根据实际收集内容和部署条件，确定技术栈、数据模型、登录方式及托管方案，记录 ADR。
-2. 建立应用骨架、真实质量检查和 Ant Design 基础页面，使用合成数据完成 UI 验收。
-3. 实现信息管理闭环，在预发布环境验证权限、持久化、导出和恢复。
-4. 完成上线门禁后发布首个生产版本。
+### 1. 安装 Docker 并取得项目
 
-历史变更见 [CHANGELOG.md](CHANGELOG.md)。当前没有生产版本。
+按发行版使用 [Docker 官方安装步骤](https://docs.docker.com/engine/install/) 安装 Docker Engine 和 Compose 插件；Ubuntu 可参考 [Ubuntu 安装页](https://docs.docker.com/engine/install/ubuntu/)。不要在已有业务服务器盲目卸载容器组件。随后确认：
+
+```bash
+docker version
+docker compose version
+git --version
+openssl version
+git clone https://github.com/HuLinger/hulinger-Information-Gathering-Station.git
+cd hulinger-Information-Gathering-Station
+git rev-parse HEAD
+```
+
+公开仓库可通过上面的 HTTPS 地址直接克隆，无需 GitHub 令牌。使用发布记录中的完整提交或经过验证的版本，不直接部署未验证的工作分支。
+
+### 2. 配置域名和独立密钥
+
+```bash
+umask 077
+cp .env.example .env
+chmod 600 .env
+openssl rand -hex 32
+```
+
+编辑 `.env`：`SITE_DOMAIN` 为实际域名，`APP_URL` 为相同域名的 `https://` 源站地址（不带路径）。随机命令执行 **四次**，分别填写四个秘密字段，不要复用。不要提交 `.env` 或把完整 `docker compose config` 输出贴到聊天/工单。
+
+| 配置 | 用途与缺失行为 |
+| --- | --- |
+| `SITE_DOMAIN` | Caddy 对外域名，例如 `hub.example.com`；缺失时 Compose 拒绝启动 |
+| `APP_URL` | 唯一可信 HTTPS 源站，与浏览器地址一致；不合法时 web/迁移拒绝启动 |
+| `POSTGRES_PASSWORD` | 数据库管理员密码，仅迁移/管理容器使用；填 64 位随机十六进制值 |
+| `APP_DB_PASSWORD` | web 有限权限数据库密码；迁移创建/更新 `hub_app` |
+| `WORKER_DB_PASSWORD` | worker 数据库密码；迁移创建/更新 `hub_worker` |
+| `BETTER_AUTH_SECRET` | 会话及 MFA 加密秘密，至少 32 字符；须安全备份，不随意重生成 |
+| `GITHUB_TOKEN` | 可选，增加公开 API 配额；无需仓库写权限 |
+| `HULINGER_IMAGE` | 默认 `hulinger-hub:local`；部署建议使用记录了提交的本地镜像标签 |
+| `DATABASE_URL` | 仅本地开发需要；Compose 按服务覆盖连接串 |
+
+DNS 须正确指向服务器；如配置 AAAA，IPv6 也须可达。Caddy 在域名与端口条件满足后申请和续期证书；示例域名不能用于生产。
+
+### 3. 构建、迁移与创建拥有者
+
+```bash
+docker compose config --quiet
+docker compose build web
+docker compose up -d --wait db
+docker compose run --rm migrate
+docker compose --profile tools run --rm admin npm run owner:create -- --email your-login@example.com
+```
+
+最后一个命令隐藏输入密码并要求再次确认，长度为 14–128 字符。邮箱仅作登录标识，不发送注册或找回邮件。已有拥有者时拒绝覆盖；密码不要放进命令参数或环境变量。
+
+```bash
+docker compose up -d --wait --wait-timeout 180
+docker compose ps
+curl --fail --silent --show-error "https://你的域名/api/health"
+curl --fail --silent --show-error "https://你的域名/api/ready"
+```
+
+前者表示 web 存活，后者检查数据库；都只返回最小状态。`ps` 中 worker 也必须健康。实际来源是否同步还须在页面检查，不能仅凭 HTTP 200 判断。
+
+### 4. 登录与采集
+
+1. 打开自己的 HTTPS 域名，用初始化邮箱和密码登录。
+2. 绑定兼容 TOTP 的验证器，离线保存恢复码，输入当前六位验证码完成绑定；成功前业务内容不可访问。
+3. 进入「来源管理」，逐个启用需要的来源；启用时检查连接与解析，失败显示原因。
+4. 点击「立即同步」，在「同步任务」查看结果。新实例初始为空，没有自动注入演示资讯。
+5. 用一条人工合成内容验证创建、搜索、编辑、收藏、回收站恢复及导出，再清理该内容。
+
+内置 OpenAI 官方公告、Claude Platform 更新、Microsoft AI 官方动态（每小时），以及 GitHub AI 开源项目（每 6 小时）。来源初始关闭，网络和配额以实际服务器为准。未填 GitHub 令牌仍可访问公开 API，但共享 IP 配额可能不足。来源缺失发布时间时会区分本站发现时间。
+
+### 5. 上线前收尾
+
+按 [部署与运维手册](docs/deployment.md) 配置每日加密异地备份、恢复演练、外部探测、采集延迟告警和容量监控，填写 [发布证据](docs/production-readiness.md)。本地测试和首次服务启动不代表全部生产门禁通过。
+
+## 升级、备份与账号恢复
+
+- **升级**：保留旧提交/镜像，先备份并在隔离环境验证迁移，再停止业务、执行迁移和启动新镜像；见 [升级流程](docs/deployment.md#升级与回滚)。
+- **备份**：`scripts/backup.sh` 在 Linux 宿主机生成数据库备份并使用 restic 加密到独立存储，附 systemd 定时器示例；见 [备份流程](docs/deployment.md#每日加密备份)。仓库未替你配置远端存储。
+- **恢复**：先恢复到独立 Compose 项目，核对数据和身份密钥再切换；见 [恢复演练](docs/deployment.md#隔离恢复演练)。
+- **忘记密码或遗失验证器与恢复码**：在受控服务器终端执行下列命令。它重设密码、撤销全部会话和旧恢复码、要求重绑验证器，不删除业务内容。
+
+```bash
+docker compose --profile tools run --rm admin npm run owner:recover -- --confirm-recovery
+```
+
+普通暂停使用 `docker compose stop`，关闭入口可只停 `caddy`。不要用 `docker compose down -v` 排查普通故障：`-v` 会删除命名数据卷。
+
+## 本地开发与检查
+
+需要 Node.js 22+、npm、Git 和独立 PostgreSQL。开发/测试/生产须分库分密钥；集成测试会创建/删除测试库，部分领域测试会重建测试数据，**不得指向生产**。
+
+```powershell
+npm ci
+npm run setup
+Copy-Item .env.example .env
+```
+
+本地 `.env` 设置 `APP_URL=http://127.0.0.1:3000`、随机 `BETTER_AUTH_SECRET` 和开发库 `DATABASE_URL`，然后：
+
+```powershell
+npm run migrate
+npm run owner:create -- --email local@example.test
+npm run dev
+```
+
+另开终端启动 worker（显式加载 `.env`）：
+
+```powershell
+node --env-file=.env --import tsx src/worker.ts
+```
+
+日常运行 `npm run check`（规范、ESLint、类型、Node 测试）和 `npm run build`。没有显式测试库时数据库用例会跳过，跳过不等于通过。完整测试先配置专用 PostgreSQL 管理员连接及 `TEST_DATABASE_URL`、`AUTH_TEST_DATABASE_URL`、`DATABASE_URL`、`RUN_DB_TESTS=1`、`COLLECTOR_DATABASE_TEST=1` 和测试认证环境，再迁移并运行 `check`；具体见 [CI 配置](.github/workflows/quality.yml)。`setup` 仅配置当前仓库的 hooks 与换行策略，新克隆后执行一次。
+
+## 文档入口
+
+| 文档 | 内容 |
+| --- | --- |
+| [部署与运维](docs/deployment.md) | 安装核对、升级、备份、恢复、监控和排障 |
+| [项目章程](docs/project-charter.md) / [首版设计](docs/design/v1-product-design.md) | 产品范围、流程和验收 |
+| [来源策略](docs/design/v1-source-strategy.md) | 收集边界、去重、时间和热度 |
+| [界面规格](docs/design/v1-screen-specification.md) / [双端体验](docs/design/v1-responsive-experience.md) | 已选视觉方案和双端操作 |
+| [UI 标准](docs/ui-standard.md) / [设计令牌](design/tokens.json) | Ant Design、布局和可访问性 |
+| [工程规范](docs/engineering.md) / [Git 流程](docs/git-workflow.md) / [工作约定](AGENTS.md) | 开发与维护约束 |
+| [安全规范](SECURITY.md) / [上线门禁](docs/production-readiness.md) | 权限、秘密、发布与恢复目标 |
+| [架构决策](docs/adr/0003-self-hosted-architecture.md) / [版本记录](CHANGELOG.md) | 技术取舍和变化记录 |
