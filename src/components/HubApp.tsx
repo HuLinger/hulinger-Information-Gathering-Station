@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Alert, App, Button, Checkbox, Drawer, Dropdown, Form, Input, Pagination, Select, Skeleton, Space, Tabs, Tag } from 'antd';
 import type { InputRef } from 'antd';
-import { AppstoreOutlined, ArrowRightOutlined, BookOutlined, CheckOutlined, DeleteOutlined, DownOutlined, FilterOutlined, GithubOutlined, HomeOutlined, LinkOutlined, LogoutOutlined, MenuOutlined, MoreOutlined, PlusOutlined, SearchOutlined, SettingOutlined, SyncOutlined, UserOutlined, WifiOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, ArrowRightOutlined, BookOutlined, CheckOutlined, CloudOutlined, DeleteOutlined, DownOutlined, FilterOutlined, GithubOutlined, HomeOutlined, LinkOutlined, LogoutOutlined, MenuOutlined, MoreOutlined, PlusOutlined, SearchOutlined, SettingOutlined, SyncOutlined, UserOutlined, WifiOutlined } from '@ant-design/icons';
 import type { HubData, HubEvent, Personal } from '../shared/contracts';
 import { ApiError, errorMessage, postJson, requestHubData, requestJson, type AuthStatus, type HubAction } from './api';
 import { EmptyState, ErrorNotice, kindOptions, recordValue, sourceHealth, stringArray, stringValue } from './format';
@@ -15,8 +15,9 @@ import { MergeDialog, SplitDialog } from './MergeSplit';
 import EntitiesPanel, { EntityDetail } from './EntitiesPanel';
 import SourcesPanel, { SourceIcon } from './SourcesPanel';
 import SettingsPanel from './SettingsPanel';
+import DrivePanel from './drive/DrivePanel';
 
-const views = ['feed', 'models', 'projects', 'mine', 'sources', 'search', 'settings'] as const;
+const views = ['feed', 'models', 'projects', 'mine', 'sources', 'search', 'settings', 'drive'] as const;
 type View = typeof views[number];
 const navItems: { key: View; label: string; mobile: string; icon: React.ReactNode }[] = [
   { key: 'feed', label: '最新动态', mobile: '动态', icon: <HomeOutlined /> },
@@ -24,6 +25,7 @@ const navItems: { key: View; label: string; mobile: string; icon: React.ReactNod
   { key: 'projects', label: '开源项目', mobile: '项目', icon: <GithubOutlined /> },
   { key: 'mine', label: '我的整理', mobile: '我的', icon: <BookOutlined /> },
   { key: 'sources', label: '来源管理', mobile: '来源', icon: <WifiOutlined /> },
+  { key: 'drive', label: '个人云盘', mobile: '云盘', icon: <CloudOutlined /> },
 ];
 const titles: Record<View, { title: string; subtitle: string }> = {
   feed: { title: '今天，关注这些变化。', subtitle: '汇集可信来源的 AI 更新与开源发现，让值得关注的信息留在这里。' },
@@ -33,6 +35,7 @@ const titles: Record<View, { title: string; subtitle: string }> = {
   sources: { title: '每条信息，都有来处。', subtitle: '管理自动收集的范围，了解来源健康、同步进度与覆盖缺口。' },
   search: { title: '找回你关注的信息。', subtitle: '搜索资讯、模型、开源项目，以及你的标签与私人备注。' },
   settings: { title: '你的资料，由你掌握。', subtitle: '管理个人工作空间、阅读偏好与完整数据导出。' },
+  drive: { title: '文件随行，存储由你掌握。', subtitle: '在自己的服务器保存大文件，登录后上传、续传、下载与整理。' },
 };
 const sectionItems = [{ key: 'favorite', label: '收藏' }, { key: 'later', label: '稍后读' }, { key: 'archived', label: '归档' }, { key: 'review', label: '需核对' }, { key: 'trash', label: '回收站' }];
 const validSections = [...sectionItems.map((item) => item.key), 'excluded'];
@@ -116,7 +119,7 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
   }, [sessionReady, view, section, q, filters, feedTab, page]);
 
   useEffect(() => {
-    if (auth?.state !== 'ready') return;
+    if (auth?.state !== 'ready' || view === 'drive') return;
     const controller = new AbortController(); abortRef.current = controller;
     const params = new URLSearchParams({ view, page: String(page) });
     if (view === 'mine') params.set('section', section);
@@ -208,7 +211,7 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
   const hasFilter = activeFilters.length > 0 || !!q || (view === 'feed' && feedTab !== 'all');
   const initialLoadFailed = !!error && !data && !loading;
   const emptyDescription = hasFilter ? '试着清除筛选条件，或换一个更宽泛的关键词。' : view === 'mine' ? `你整理的${sectionLabel}内容会显示在这里。` : data?.sources.some((source) => source.enabled) ? '来源已启用。完成首次同步后，可核验的资讯会自动出现在这里。' : '先启用几个你信任的公开来源，或添加一条值得留下的链接。';
-  const moreMenu = { items: [{ key: 'sources', label: '来源管理', icon: <WifiOutlined /> }, { key: 'settings', label: '设置与数据导出', icon: <SettingOutlined /> }, { type: 'divider' as const }, { key: 'logout', label: '退出登录', icon: <LogoutOutlined /> }], onClick: ({ key }: { key: string }) => {
+  const moreMenu = { items: [{ key: 'drive', label: '个人云盘', icon: <CloudOutlined /> }, { key: 'sources', label: '来源管理', icon: <WifiOutlined /> }, { key: 'settings', label: '设置与数据导出', icon: <SettingOutlined /> }, { type: 'divider' as const }, { key: 'logout', label: '退出登录', icon: <LogoutOutlined /> }], onClick: ({ key }: { key: string }) => {
     if (key === 'logout') { modal.confirm({ title: '退出当前登录？', okText: '退出', cancelText: '取消', onOk: async () => { await postJson('/api/auth/sign-out', {}); router.replace('/login'); router.refresh(); } }); }
     else navigate(key as View);
   } };
@@ -216,7 +219,7 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
   const navigation = <nav aria-label="主导航" className="side-nav">{navItems.map((item) => <button className={`nav-item${view === item.key ? ' selected' : ''}`} key={item.key} onClick={() => navigate(item.key)} aria-label={item.label} title={item.label} aria-current={view === item.key ? 'page' : undefined}>{item.icon}<span>{item.label}</span></button>)}</nav>;
   const listContent = <>
     {view === 'search' && <div className="search-workspace"><Input.Search ref={searchRef} autoFocus aria-label="全局搜索" placeholder="搜索 AI 动态、模型、开源项目或个人备注…" value={searchText} onChange={(change) => setSearchText(change.target.value)} onCompositionStart={() => { searchComposing.current = true; }} onCompositionEnd={() => { searchComposing.current = false; }} onSearch={(value, event) => { if (event && 'isComposing' in event.nativeEvent && event.nativeEvent.isComposing) return; search(value); }} allowClear enterButton="搜索" size="large" /></div>}
-    {view === 'mine' && <div className="mobile-utility"><Button icon={<WifiOutlined />} onClick={() => navigate('sources')}>来源管理</Button><Button icon={<SettingOutlined />} onClick={() => navigate('settings')}>设置与导出</Button></div>}
+    {view === 'mine' && <div className="mobile-utility"><Button icon={<CloudOutlined />} onClick={() => navigate('drive')}>个人云盘</Button><Button icon={<WifiOutlined />} onClick={() => navigate('sources')}>来源管理</Button><Button icon={<SettingOutlined />} onClick={() => navigate('settings')}>设置与导出</Button></div>}
     <div className="feed-toolbar">
       {view === 'feed' ? <Tabs activeKey={feedTab} onChange={(key) => { setFeedTab(key); setPage(1); setSelectedIds([]); setLoading(true); }} items={[{ key: 'all', label: '全部' }, { key: 'unread', label: '未读' }, { key: 'followed', label: '我关注的' }]} /> : view === 'mine' ? <Tabs activeKey={section === 'excluded' ? 'review' : section} onChange={(key) => { setSection(key); setPage(1); setSelectedIds([]); setManaging(false); setLoading(true); location('mine', key, null, null); }} items={sectionItems} /> : <span className="search-count">{q ? `找到 ${data?.total ?? 0} 条资讯` : '跨类型检索'}</span>}
       <div className="toolbar-actions"><Button icon={<FilterOutlined />} onClick={() => { setFilterError(''); setFilterOpen(true); }}>筛选{activeFilters.length > 0 ? ` · ${activeFilters.length}` : ''} <DownOutlined /></Button>{view !== 'mine' && <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditingNew(true)}>添加链接</Button>}<Dropdown trigger={['click']} menu={{ items: [{ key: 'manage', label: managing ? '退出批量整理' : '批量整理' }, { key: 'refresh', label: '刷新列表' }], onClick: ({ key }) => key === 'refresh' ? reload() : (setManaging(!managing), setSelectedIds([])) }}><Button type="text" icon={<MoreOutlined />} aria-label="列表更多操作" /></Dropdown></div>
@@ -250,8 +253,9 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
     <aside className="app-sidebar"><button className="brand" onClick={() => navigate('feed')} aria-label="Hulinger 首页"><strong className="brand-full">HULINGER</strong><strong className="brand-short" aria-hidden="true">HL</strong><span>AI 情报与资料</span></button>{navigation}<div className="sidebar-bottom"><Dropdown menu={moreMenu} trigger={['click']} placement="topLeft"><button className="user-menu"><UserOutlined /><span>{auth?.user?.name || 'Hulinger'}</span><MoreOutlined /></button></Dropdown></div></aside>
     <header className="app-header"><div className="mobile-header-brand"><Button icon={<MenuOutlined />} type="text" aria-label="打开导航" onClick={() => setMobileNav(true)} /><strong>HULINGER</strong></div><div className="breadcrumb"><span>工作空间</span><span>/</span><strong>{currentTitle}</strong></div><div className="header-search"><Input ref={view === 'search' ? undefined : searchRef} prefix={<SearchOutlined />} suffix={<kbd>⌘ K</kbd>} aria-label="搜索 AI 动态、模型、开源项目" placeholder="搜索 AI 动态、模型、开源项目…" value={searchText} onChange={(change) => setSearchText(change.target.value)} onCompositionStart={() => { searchComposing.current = true; }} onCompositionEnd={() => { searchComposing.current = false; }} onPressEnter={(event) => { if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) search(searchText); }} /></div><div className="mobile-header-actions"><Button icon={<SearchOutlined />} type="text" aria-label="全局搜索" onClick={() => navigate('search')} /><Dropdown menu={moreMenu} trigger={['click']}><Button type="text" icon={<UserOutlined />}>更多</Button></Dropdown></div></header>
     <main className="app-main" id="main-content"><div className="page-intro">{view === 'feed' && <p className="today-date">{new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date())}</p>}<h1 tabIndex={-1}>{titles[view].title}</h1><p className="page-description">{titles[view].subtitle}</p></div>
-      {error && <div className="section-alert"><ErrorNotice error={error} retry={reload} /></div>}
-      {loading && data && <div className="refresh-status" role="status"><SyncOutlined spin /> 正在读取最新资料…</div>}
+      {error && (view !== 'drive' || !auth) && <div className="section-alert"><ErrorNotice error={error} retry={reload} /></div>}
+      {loading && data && view !== 'drive' && <div className="refresh-status" role="status"><SyncOutlined spin /> 正在读取最新资料…</div>}
+      {auth?.state === 'ready' && <div hidden={view !== 'drive'}><DrivePanel active={view === 'drive'} /></div>}
       <div className={showRail ? 'workspace-columns' : 'workspace-single'}>
         <div className="main-column">{showList && listContent}{(view === 'models' || view === 'projects') && (data ? <EntitiesPanel key={view} entities={data.entities} kind={view === 'projects' ? 'project' : 'model'} act={act} onOpen={openEntity} onSources={() => navigate('sources')} /> : loading ? <Skeleton active /> : null)}{view === 'sources' && (data ? <SourcesPanel sources={data.sources} runs={data.runs} act={act} onRefresh={reload} /> : loading ? <Skeleton active /> : null)}{view === 'settings' && auth?.state === 'ready' && <SettingsPanel user={auth.user} act={act} density={density} onDensity={(next) => { setDensity(next); window.localStorage.setItem('hulinger-density', next); }} onSources={() => navigate('sources')} />}</div>
         {showRail && <aside className="context-rail" aria-label="来源与稍后读"><section className="rail-card"><div className="rail-card-heading"><AppstoreOutlined /><h2>来源状态</h2><Button type="text" aria-label="查看全部来源" onClick={() => navigate('sources')}>全部 <ArrowRightOutlined /></Button></div><div className="rail-source-list">{data?.sources.length ? [...data.sources].sort((a, b) => Number(b.enabled) - Number(a.enabled)).slice(0, 3).map((source) => { const health = sourceHealth(source); return <button key={source.id} className="rail-source" onClick={() => navigate('sources')}><span className="rail-source-icon"><SourceIcon source={source} /></span><div><strong>{source.name}</strong><span>{source.id.includes('github') ? '开源项目与发布动态' : '模型更新与官方公告'}</span></div><span className={`status-text ${health.tone}`}>{health.label}</span></button>; }) : <p className="rail-empty">{loading ? '正在读取来源状态…' : '启用来源后，自动收集的状态会显示在这里。'}</p>}</div></section><section className="rail-card"><div className="rail-card-heading"><BookOutlined /><h2>稍后读</h2><Button type="text" icon={<ArrowRightOutlined />} aria-label="查看全部稍后读" onClick={() => navigate('mine', 'later')} /></div>{data?.later.length ? <div className="rail-later-list">{data.later.map((event) => <button key={event.id} onClick={() => openEvent(event)}>{event.title}</button>)}</div> : <div className="rail-empty"><p>先留住，慢慢读。</p><span>在资讯详情中加入稍后读，方便下次继续。</span></div>}</section><div className="rail-note"><CheckOutlined /><span>内容保留来源，个人整理由你掌握。</span></div></aside>}

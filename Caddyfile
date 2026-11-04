@@ -3,19 +3,62 @@
 }
 
 {$SITE_DOMAIN} {
-  encode zstd gzip
-  request_body {
-    max_size 1MB
-  }
   header {
     Strict-Transport-Security "max-age=31536000"
     X-Content-Type-Options nosniff
     Referrer-Policy no-referrer
     -Server
   }
-  # Caddy replaces the client IP header; the application accepts traffic only here.
-  reverse_proxy web:3000 {
-    header_up X-Forwarded-For {remote_host}
+  @download {
+    method GET HEAD
+    path_regexp download ^/api/drive/files/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/content$
+  }
+  @upload {
+    method PUT
+    path_regexp upload ^/api/drive/uploads/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/parts/[0-9]+$
+  }
+  route {
+    handle @download {
+      route {
+        # Never trust a browser-supplied storage path or authorization result.
+        request_header -X-Drive-*
+        forward_auth web:3000 {
+          uri /api/drive/authorize-download
+          copy_headers X-Drive-Storage-Key X-Drive-Disposition X-Drive-ETag
+          header_up X-Forwarded-For {remote_host}
+        }
+        @invalid_key not header_regexp X-Drive-Storage-Key ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.bin$
+        respond @invalid_key 403
+        header {
+          Cache-Control "private, no-store"
+          Content-Type application/octet-stream
+          Content-Disposition {http.request.header.X-Drive-Disposition}
+          ETag {http.request.header.X-Drive-ETag}
+          X-Content-Type-Options nosniff
+        }
+        rewrite * /{http.request.header.X-Drive-Storage-Key}
+        file_server {
+          root /data/drive/objects
+        }
+      }
+    }
+    handle @upload {
+      request_body {
+        max_size 33MiB
+      }
+      reverse_proxy web:3000 {
+        header_up X-Forwarded-For {remote_host}
+      }
+    }
+    handle {
+      encode zstd gzip
+      request_body {
+        max_size 1MB
+      }
+      reverse_proxy web:3000 {
+        header_up X-Forwarded-For {remote_host}
+      }
+    }
   }
   # Access logging is intentionally off: private search terms and URLs stay out of logs.
 }

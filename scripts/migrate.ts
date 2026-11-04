@@ -35,7 +35,7 @@ async function runtimeRoles(client: PoolClient, roles: RuntimeRoles) {
     REVOKE ALL ON hub_migrations, auth_admin_audit FROM ${app};
     GRANT SELECT, INSERT, UPDATE, DELETE ON
       entities, events, sources, source_records, sync_runs, snapshots,
-      revisions, merge_operations, app_settings, worker_heartbeats, export_jobs TO ${worker};
+      revisions, merge_operations, app_settings, worker_heartbeats, export_jobs, drive_files, drive_parts TO ${worker};
     GRANT SELECT ON separate_records TO ${worker};
     ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS web_settings_read ON app_settings;

@@ -1,6 +1,6 @@
 # 部署、备份与运维
 
-适用：首版 Docker Compose 交付，2026-11-04。目标为单台 Linux 服务器运行私有站点。用户服务器、域名、备份目标与告警渠道尚未提供，本文不表示生产门禁已完成。
+适用：Linux Docker Compose 交付，2026-11-04。现有 Windows 原生服务部署使用 [Windows 候选更新流程](windows-update.md)，不要把本页的容器操作直接套用到 Windows 服务。本文不表示本轮更新已经部署到生产。
 
 首次安装按 [README](../README.md) 执行。Bash 示例部署目录为 `/opt/hulinger`，Compose 项目名为 `hulinger`；更改后同步备份配置。生产与恢复环境不得共用项目名。
 
@@ -17,7 +17,17 @@
 
 web/worker 使用非 root 用户、只读根文件系统，不持有数据库管理员密码。worker 拥有独立 `pgboss` schema，不能读取身份凭据表。拥有者配置只能由管理员修改。
 
-当前无附件目录。恢复需要数据库 custom dump、对应代码/镜像、Compose/Caddy 配置及原 `BETTER_AUTH_SECRET`。Caddy 证书可在域名仍受控且证书服务可达时重申请；RTO 测量要计入申请时间及限制。
+云盘文件保存在 `drive_files` 卷的 `/data/drive/objects`；同一文件从上传到完成使用同一个对象路径，数据库决定是否允许下载。恢复需要**同一快照**的数据库 custom dump、文件树、对应代码/镜像、Compose/Caddy 配置及原 `BETTER_AUTH_SECRET`。Caddy 证书可在域名仍受控且证书服务可达时重申请；RTO 测量要计入申请时间及限制。
+
+## 云盘存储与反向代理
+
+原有项目名 `hulinger` 和 `database`、`caddy_data`、`caddy_config` 卷保持不变，只新增 `drive_files`。容器中的 web/worker 以 UID/GID 1000 写入文件，Caddy 只读挂载同一目录。绑定宿主机磁盘时在本地 `compose.override.yml` 为三个服务配置同一来源，预先给应用账号必要权限；Caddy 使用只读挂载。不要把文件目录放进 `public`、源码、备份暂存目录或系统临时盘。
+
+`.env` 可设置单文件上限、配额、磁盘预留、分片和并发，默认分别是 1 TiB、无额外配额、1 GiB、16 MiB、最多 8 并发。应用还扣除进行中上传的剩余容量，空间不足会拒绝继续写入；这些默认值不代表磁盘或带宽承诺。大文件传输使用有界缓冲，暂停/重选文件后核对分片继续上传。
+
+仓库 Caddy 仅对精确的上传分片 PUT 路径放宽到 33 MiB，其他接口仍为 1 MB。下载每次先请求应用验证拥有者、MFA 和文件状态，再只读直出文件，支持 HEAD、Range 与 If-Range；响应强制附件、禁止缓存和压缩，不开放目录浏览。客户端 `X-Drive-*` 会在鉴权前删除。固定 Caddy 2.11.7 镜像摘要，与应用的流式下载回退保持相同 ETag。
+
+已有 Caddy/Cloudflare Tunnel 等入口应保留现有域名、TLS、隧道和访问控制，只合并本仓库的上传/下载路由；原生 Windows 下把文件根改为实际私有目录并分别授予应用写入、Caddy 读取权限。未合并直出路由时，应用仍提供受鉴权的流式 Range 下载。最终吞吐受客户端、链路、代理、磁盘与服务器共同限制；代理的请求体/超时设置须容纳单个分片。
 
 ## 配置与安装核对
 
@@ -34,38 +44,42 @@ web/worker 使用非 root 用户、只读根文件系统，不持有数据库管
 
 ## 升级与回滚
 
-先在隔离环境验证新提交的依赖安装、`npm run check`、构建、迁移及关键路径，保存 CI 结果。命令中的 `目标提交` 替换为完整 SHA。
+先在隔离环境验证新提交的依赖安装、`npm run check`、构建、迁移及关键路径，保存 CI 结果。服务器配置放 `.env` 和 `compose.override.yml`；两个文件均被 Git/Docker 构建排除，不能把源码定制藏在忽略规则里。
 
 ```bash
 cd /opt/hulinger
-git status --short
-git rev-parse HEAD
-docker compose images
+sudo bash -c 'set -a; source /etc/hulinger/backup.env; set +a; bash "$HUB_DIR/scripts/update.sh" origin/main'
 ```
 
-记录旧提交、镜像 ID，为旧镜像加保留标签。将 `.env` 的 `HULINGER_IMAGE` 改为 `hulinger-hub:git-目标提交前12位`，新版本独立命名。
+上述命令适用于**已经包含更新脚本**的干净 Linux 部署。脚本拒绝未提交/未跟踪源码和本地分叉提交，不执行 reset、clean 或 stash；只接受快进。它记录旧提交/镜像到私有 `.deploy/previous-release` 并保留镜像标签，先完成配对备份，再切换源码并构建，之后停止写入、迁移和等待健康。构建失败会返回旧提交且不停止原容器；迁移或启动失败保持 web/worker 停止，不能悄悄跳过失败。
+
+**v0.1 首次升级**时旧目录没有 `scripts/update.sh` 和其共享 helper，不要直接运行不存在的脚本，也不要只下载单个文件。先将新发布克隆到独立候选目录并核对提交，将原部署的已提交定制正常合入候选；配置保留在原部署。完成候选检查与旧版数据库备份后，才能按下列受控步骤迁移原部署。若原目录含本地定制提交，须先合并上游并处理冲突，不能使用快进更新器绕过。现有 Windows 定制部署使用单独的候选工具。
 
 ```bash
-sudo systemctl start hulinger-backup.service
-sudo systemctl status hulinger-backup.service --no-pager
+# 仅用于已确认无本地源码定制的旧 Linux 部署；先验证备份成功。
+git status --short
 git fetch origin
-git checkout --detach 目标提交
-docker compose build web
-docker compose stop caddy web worker
-docker compose run --rm migrate
-docker compose up -d --wait --wait-timeout 180
-docker compose ps
+git merge --ff-only 已验证的完整提交
+bash scripts/compose.sh config --quiet
+bash scripts/compose.sh build web worker migrate
+bash scripts/compose.sh stop web worker
+bash scripts/compose.sh run --rm --no-deps migrate
+bash scripts/compose.sh up -d --no-build --wait --wait-timeout 180 web worker
+bash scripts/compose.sh up -d --no-build caddy
+bash scripts/compose.sh restart caddy
 ```
 
 每条成功后再继续。迁移失败时保持入口关闭，检查脱敏日志和兼容性；不要继续启动。新版本验证登录、MFA、创建/编辑/搜索/导出、来源任务和持久性，记录提交与镜像。
 
-数据库兼容旧应用时，可切回旧提交和保留镜像，再 `docker compose up -d --no-build --wait`。不兼容或数据受损时先停入口及写入、保护现有数据，走隔离恢复与切换；恢复会影响备份点后的写入，代码回退不能代替数据库恢复。首次发布无上一生产版本，撤下时 `docker compose stop caddy web worker` 并保留卷和副本。
+数据库兼容旧应用时，可切回记录的旧提交，将 `HULINGER_IMAGE` 设为记录的保留镜像标签，再用原配置 `up -d --no-build --wait`。不要 `source .deploy/previous-release` 执行未知内容，直接核对文件中的值。不兼容或数据受损时先停入口及写入、保护现有数据，走隔离恢复与切换；恢复会影响备份点后的写入，代码回退不能代替数据库恢复。首次发布无上一生产版本，撤下时停 `caddy web worker` 并保留卷和副本。
 
 普通故障不要执行 `docker compose down -v`。PostgreSQL 主版本升级须单独演练，不能只改容器标签；本项目锁定 PostgreSQL 18 镜像与对应卷路径。
 
 ## 每日加密备份
 
-[scripts/backup.sh](../scripts/backup.sh) 在 Linux 宿主机生成 PostgreSQL 一致性 custom dump，检查归档目录可读，连同 `.env`、Compose/Caddy 配置和版本信息交给 restic 加密。成功后保留每日 7 份、每周 4 份，并检查仓库元数据；成功时间写入 `/var/lib/hulinger-backup/last-success`。数据库包括来源、个人整理、身份、队列、去重/排除标识和导出任务。
+[scripts/backup.sh](../scripts/backup.sh) 在 Linux 宿主机暂停 web 和 worker（包括文件清理），生成 PostgreSQL custom dump，检查归档目录可读，并从实际容器挂载发现云盘路径。数据库、文件树、`.env`、本地 Compose 覆盖、Caddy 配置、记录数量和版本信息进入**同一个 restic 快照**。文件树直接增量备份，不生成整盘 tar 或二次完整复制。成功后恢复原来运行的服务，再保留每日 7 份、每周 4 份并检查仓库元数据；失败也只恢复原来运行的服务。成功时间写入 `/var/lib/hulinger-backup/last-success`。
+
+首次全量备份及大量变更需要与上传量相称的维护窗口，期间上传/下载和后台采集不可用；不要用几秒的数据库 dump 时间估算整个窗口。后续 restic 去重减少传输，但仍需测量文件扫描与备份时间。已存在云盘表但无法识别挂载时脚本拒绝生成仅数据库备份。云盘回收站和进行中上传也在快照中，恢复后继续受原保留期约束。
 
 备份目标必须位于独立故障域，例如另一台服务器的受限 SFTP 目录或对象存储；同机另一目录不能防服务器损坏。restic 发送前加密，密码与副本分开保管并留离线恢复材料。[restic 备份](https://restic.readthedocs.io/en/stable/040_backup.html)、[保留策略](https://restic.readthedocs.io/en/stable/060_forget.html)
 
@@ -152,35 +166,46 @@ sudo systemctl list-timers hulinger-backup.timer
 ```bash
 sudo install -d -m 0700 /var/lib/hulinger-restore
 sudo bash -c 'set -a; source /etc/hulinger/backup.env; set +a; restic snapshots --host hulinger-production --tag hulinger'
-# 替换 SNAPSHOT_ID；子目录内容直接恢复到目标目录。
-sudo bash -c 'set -a; source /etc/hulinger/backup.env; set +a; restic restore SNAPSHOT_ID:/var/lib/hulinger-backup/staging --target /var/lib/hulinger-restore'
+# 替换 SNAPSHOT_ID；恢复整个快照，同时取回数据库和文件树。
+sudo bash -c 'set -a; source /etc/hulinger/backup.env; set +a; restic restore SNAPSHOT_ID --sparse --target /var/lib/hulinger-restore'
 ```
 
-2. 在独立部署目录取得对应源码，将 `site.env` 安全复制为 `.env`（`600`），保留原 `BETTER_AUTH_SECRET`。改成恢复域名及其 `APP_URL`；可生成新的数据库密码。目录、卷、域名都须隔离。
-3. 显式使用项目名 `hulinger_restore`。`--clean` 只针对这个新数据库：先迁移空库建立运行角色，再恢复带 ownership/ACL 的 dump。不要用 `--no-owner`，否则 pg-boss 对象可能归错角色。
+2. 默认备份暂存内容恢复到 `/var/lib/hulinger-restore/var/lib/hulinger-backup/staging`；改变了 `HUB_BACKUP_STATE` 时按快照中的原绝对路径定位。在独立部署目录取得对应源码，将其中 `site.env` 安全复制为 `.env`（`600`），保留原 `BETTER_AUTH_SECRET`。改成恢复域名及其 `APP_URL`；可生成新的数据库密码。**不直接加载备份中的 Compose 覆盖文件**，它可能绑定生产文件目录或显式命名生产卷，必须逐项改成隔离目标后才能使用。原文件只供审查。
+3. 显式使用项目名 `hulinger_restore`，并仅指定标准 `compose.yml`。`--clean` 只针对这个新数据库：先迁移空库建立运行角色，再恢复带 ownership/ACL 的 dump。不要用 `--no-owner`，否则 pg-boss 对象可能归错角色。
 
 ```bash
 cd /opt/hulinger-restore
-docker compose -p hulinger_restore build web
-docker compose -p hulinger_restore up -d --wait db
-docker compose -p hulinger_restore run --rm migrate
-sudo cat /var/lib/hulinger-restore/hulinger.dump | docker compose -p hulinger_restore exec -T db pg_restore -U postgres -d hulinger --clean --if-exists --exit-on-error
-docker compose -p hulinger_restore run --rm migrate
+dc=(docker compose --env-file .env -p hulinger_restore -f compose.yml)
+staging=/var/lib/hulinger-restore/var/lib/hulinger-backup/staging
+"${dc[@]}" build web
+"${dc[@]}" up -d --wait db
+"${dc[@]}" run --rm --no-deps migrate
+sudo cat "$staging/hulinger.dump" | "${dc[@]}" exec -T db pg_restore -U postgres -d hulinger --clean --if-exists --exit-on-error
+"${dc[@]}" run --rm --no-deps migrate
+# drive-path.txt 记录原实际挂载路径；restic 按原绝对路径恢复在新根下。
+drive_source="$(sudo cat "$staging/drive-path.txt")"
+test -n "$drive_source"
+sudo test -d "/var/lib/hulinger-restore$drive_source/objects"
+"${dc[@]}" run --rm --no-deps --user root \
+  -v "/var/lib/hulinger-restore$drive_source:/restore:ro" web sh -c 'cp -a --sparse=always /restore/. /data/drive/'
+"${dc[@]}" run --rm --no-deps web node --import tsx scripts/verify-drive-storage.ts
 ```
 
 任一步失败即停止，保持 web/worker 未启动；查清后在新的空恢复环境重试。不要发布部分恢复的数据库，也不要用直接复制运行中的 PostgreSQL 目录代替恢复。
 
-4. 记录原来启用的来源，关闭它们并撤销旧会话，防演练启动后自动访问来源；核对后再逐一启用。
+文件复制必须保留所属 UID/GID；上面的 `cp -a --sparse=always` 从快照恢复到**新建恢复卷**，与 restic 的 `--sparse` 配合，避免未完成上传的零区间占满实际磁盘。不要把旧生产文件卷挂进恢复项目，也不要把“数据库恢复成功、文件稍后再补”视为可用恢复。旧版没有云盘的快照 `drive-path.txt` 可为空，此时不执行文件复制；新版本迁移创建空云盘表后仍执行校验器。备份脚本首次引入之前的旧快照没有该清单，应先按其原版本说明恢复，再升级。
+
+4. 对照 `counts.tsv` 核对事件、实体、来源、文件和分片数量。校验器逐一检查文件类型、大小、完整文件分片数量与全部已提交分片 SHA-256，含回收站及未完成上传；校验失败即停止，不启动 worker 清理。随后记录原来启用的来源，关闭它们并撤销旧会话，防演练自动访问来源；核对后再逐一启用。
 
 ```bash
-docker compose -p hulinger_restore exec -T db psql -U postgres -d hulinger -v ON_ERROR_STOP=1 -c 'SELECT id,enabled,last_success FROM sources ORDER BY id;'
-docker compose -p hulinger_restore exec -T db psql -U postgres -d hulinger -v ON_ERROR_STOP=1 -c 'UPDATE sources SET enabled=false; DELETE FROM "session";'
-docker compose -p hulinger_restore up -d --wait --wait-timeout 180 web worker
-docker compose -p hulinger_restore ps
+"${dc[@]}" exec -T db psql -U postgres -d hulinger -v ON_ERROR_STOP=1 -c 'SELECT id,enabled,last_success FROM sources ORDER BY id;'
+"${dc[@]}" exec -T db psql -U postgres -d hulinger -v ON_ERROR_STOP=1 -c 'UPDATE sources SET enabled=false; DELETE FROM "session";'
+"${dc[@]}" up -d --wait --wait-timeout 180 web worker
+"${dc[@]}" ps
 ```
 
 5. 在独立服务器启动 Caddy 并用恢复域名验证 HTTPS。同机演练**不要启动第二个默认 Caddy**，它会争用 80/443；在现有受控反向代理添加独立恢复站点，或移至隔离服务器验证。不要公开数据库/应用端口。
-6. 核对事件/实体/来源/个人状态数量，抽查备注、人工覆盖、关联、排除标识和时间，验证登录/MFA、搜索、编辑、导出及重启。原身份密钥无法恢复时用管理员恢复命令重设拥有者并重绑 MFA，记录影响。
+6. 核对事件/实体/来源/个人状态数量，抽查备注、人工覆盖、关联、排除标识和时间，验证登录/MFA、搜索、编辑、导出、文件下载/断点续传及重启。原身份密钥无法恢复时用管理员恢复命令重设拥有者并重绑 MFA，记录影响。
 7. 在一个明确的公开来源上重新启用并同步两次，核对去重、人工修正、队列与进度，再按计划切换域名/入口。保护原数据副本，处理备份点后的写入差异。
 
 记录快照 ID、提交/镜像、备份点、开始/结束时间、数据库大小、抽样、MFA/业务结果、RPO/RTO、失败点和修复。dump 与私人截图不得放进公开日志。[restic 恢复说明](https://restic.readthedocs.io/en/stable/050_restore.html)

@@ -1,8 +1,10 @@
 import { pool, query } from './server/db';
 import { processPendingExports } from './server/exports';
 import { collectSource, cleanupTrash, ensureSources, enqueueDueSources, getBoss, QUEUES } from './server/collector';
+import { closeDrive, getDrive } from './server/drive/runtime';
 
 async function main(): Promise<void> {
+  await getDrive().checkStorage();
   await ensureSources();
   const boss = await getBoss(true);
   const tick = async () => {
@@ -17,7 +19,7 @@ async function main(): Promise<void> {
     await collectSource(job.data.sourceId);
   });
   await boss.work(QUEUES.tick, async () => { await tick(); });
-  await boss.work(QUEUES.cleanup, async () => { await cleanupTrash(); });
+  await boss.work(QUEUES.cleanup, async () => { await cleanupTrash(); await getDrive().cleanup(); });
   await boss.schedule(QUEUES.tick, '* * * * *', {}, { tz: 'UTC' });
   await boss.schedule(QUEUES.cleanup, '15 19 * * *', {}, { tz: 'UTC' });
   await tick();
@@ -27,6 +29,7 @@ async function main(): Promise<void> {
     if (stopping) return;
     stopping = true;
     await boss.stop({ graceful: true, timeout: 30_000 });
+    await closeDrive();
     await pool.end();
   };
   process.on('SIGTERM', () => { void stop().then(() => process.exit(0)); });

@@ -47,6 +47,14 @@ jobs:
           node-version-file: .node-version
       - name: Install locked dependencies
         run: npm ci
+      - name: Prepare pinned Caddy integration binary
+        run: |
+          mkdir -p .tmp
+          container=$(docker create caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5)
+          docker cp "$container:/usr/bin/caddy" .tmp/caddy
+          docker rm "$container"
+          chmod +x .tmp/caddy
+          echo "CADDY_BINARY=$PWD/.tmp/caddy" >> "$GITHUB_ENV"
       - name: Generate isolated test authentication material
         run: node -e "require('node:fs').appendFileSync(process.env.GITHUB_ENV,'BETTER_AUTH_SECRET='+require('node:crypto').randomBytes(32).toString('hex')+'\n')"
       - name: Migrate test database
@@ -78,6 +86,12 @@ jobs:
           docker compose --env-file .tmp/ci.env -p hulinger_ci restart web worker
           docker compose --env-file .tmp/ci.env -p hulinger_ci up -d --no-build --wait --wait-timeout 180 web worker
           docker compose --env-file .tmp/ci.env -p hulinger_ci exec -T web node -e "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1))"
+      - name: Verify HTTP owner, MFA and private large-file transfers through Caddy
+        run: |
+          printf 'services:\n  caddy:\n    environment:\n      SITE_DOMAIN: http://hub.example.test\n' > .tmp/ci-caddy.yml
+          dc=(docker compose --env-file .tmp/ci.env -p hulinger_ci -f compose.yml -f .tmp/ci-caddy.yml)
+          "${dc[@]}" up -d --no-build --wait --wait-timeout 180 caddy
+          "${dc[@]}" run --rm --no-deps -T -e CI=true admin node --import tsx scripts/ci-drive-smoke.ts
       - name: Verify isolated PostgreSQL backup and restore
         run: |
           set -euo pipefail
@@ -123,6 +137,11 @@ jobs:
           DELETE FROM sources WHERE id='ci-restore-source';
           SQL
           "${dc[@]}" up -d --no-build --wait --wait-timeout 180 web worker
+      - name: Verify paired encrypted database and drive restore
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y restic
+          sudo --preserve-env=CI,PATH bash scripts/ci-paired-restore.sh
       - name: Container diagnostics on failure
         if: failure()
         run: test ! -f .tmp/ci.env || docker compose --env-file .tmp/ci.env -p hulinger_ci logs --tail 80
@@ -137,3 +156,23 @@ jobs:
         run: |
           node scripts/check-commit-message.mjs --pr-title
           node scripts/check-branch.mjs --pr
+
+  windows-update:
+    name: Windows update safety
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Verify candidate preparation in PowerShell 7
+        shell: pwsh
+        run: ./tests/update-windows.test.ps1
+      - name: Verify candidate preparation in Windows PowerShell 5.1
+        shell: powershell
+        run: ./tests/update-windows.test.ps1
