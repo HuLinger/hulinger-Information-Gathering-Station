@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-11-04T12:31:16.671106+00:00",
+  "repository": "HuLinger/hulinger-Information-Gathering-Station",
+  "url": "https://github.com/HuLinger/hulinger-Information-Gathering-Station",
+  "visibility": "public",
+  "defaultBranch": "main",
+  "branchProtection": {
+    "branch": "main",
+    "strictChecks": true,
+    "requiredChecks": [
+      "Repository baseline"
+    ],
+    "enforceAdmins": true,
+    "requiredPullRequest": true,
+    "requiredApprovingReviewCount": 0,
+    "dismissStaleReviews": true,
+    "conversationResolution": true,
+    "allowForcePushes": false,
+    "allowDeletions": false
+  }
+}

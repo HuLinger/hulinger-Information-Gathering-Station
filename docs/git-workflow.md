@@ -39,16 +39,16 @@ PR 必须说明问题、最终行为、验证、截图（适用时）、数据�
 
 ## 接入远程后的保护设置
 
-远程已创建为私有仓库 [HuLinger/hulinger-ai-hub](https://github.com/HuLinger/hulinger-ai-hub)。下列设置须核实实际生效；仓库内的 YAML 不会自动启用分支保护，结果记录在 [验收记录](verification/v1-validation.md)：
+远程按用户明确要求更名并公开为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)，依据见 [ADR 0004](adr/0004-public-source-repository.md)。下列设置须核实实际生效；仓库内的 YAML 不会自动启用分支保护，结果记录在 [验收记录](verification/v1-validation.md)：
 
-1. 默认私有仓库，默认分支 `main`；确认所用托管方案支持私有仓库规则保护。
+1. 代码仓库公开，默认分支 `main`；业务数据、真实配置和备份不得入库，部署网站只允许本人登录后访问。
 2. 要求 PR 合并、会话解决、状态检查通过；必须检查名称为 `Repository baseline`，应用建立后加入真正的构建与测试检查。
 3. 禁止 force push 和删除 `main`，将规则应用到管理员；禁止将常规绕过作为发布方式。
 4. 单人阶段不要求不存在的第二位审核者；有协作者后对 UI、权限、数据迁移等改动要求至少一位其他人员审核。
 5. 保护发布标签；配置机密扫描/推送保护（平台支持时），依赖与安全检查按实际栈接入。生产环境凭据独立于 PR 工作流。
 6. 保存实际设置截图或可核验导出，记录首次 CI 运行链接；不要把本文当作远程配置完成证据。
 
-若托管套餐无法强制私有分支规则，首次上线前选择支持该能力的私有托管方案；不得为获取保护功能擅自公开仓库。本地 hooks 和书面自审不替代此项远程门禁。
+仓库可见性变更须由用户明确授权；本次公开源于用户主动要求。后续如改回私有，须重新核实套餐和保护能力。本地 hooks 和书面自审不替代远程门禁。
 
 ## 版本与回退
 

@@ -101,4 +101,4 @@ CI、业务、安全及 UI 验证结果和证据位置：
 
 ## 8. 实施前需落定的参数
 
-应用与数据技术栈、身份方案和 Docker 自托管交付已由 [ADR 0003](adr/0003-self-hosted-architecture.md) 落定，私有远程仓库为 [HuLinger/hulinger-ai-hub](https://github.com/HuLinger/hulinger-ai-hub)。仍需在目标环境补齐：服务器系统与架构、域名和网络、月度预算、备份存储与密钥保管方式、告警/安全报告渠道。具体实现验证见 [验收记录](verification/v1-validation.md)；不能从本文推断生产资源已配置。
+应用与数据技术栈、身份方案和 Docker 自托管交付已由 [ADR 0003](adr/0003-self-hosted-architecture.md) 落定，公开代码仓库为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)，公开决定见 [ADR 0004](adr/0004-public-source-repository.md)。仍需在目标环境补齐：服务器系统与架构、域名和网络、月度预算、备份存储与密钥保管方式、告警/安全报告渠道。具体实现验证见 [验收记录](verification/v1-validation.md)；不能从本文推断生产资源已配置。

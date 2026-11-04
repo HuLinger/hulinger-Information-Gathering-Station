@@ -15,7 +15,7 @@
 - 浏览器走通密码登录、首次 TOTP 绑定、首页、手机收藏、备注保存、备注搜索、收藏回找和后台导出下载。
 - 实际下载 JSON 为 `hulinger-personal-export` v1，包含 473 条事件、4 个来源、27 个实体和 11 条修订，包含测试私人备注；不含账号、会话或密码表。数量为当次公开采集与测试快照，之后可变化。
 - 真实 OpenAI 和 Microsoft 官方源可解析并入库；GitHub API 已获得项目与发布信息，匿名配额耗尽时保留游标和重试时间，页面如实显示异常。Claude 源在当前网络发生 307 跳转，安全抓取拒绝跳转，保持未启用。
-- Compose 配置语法、备份脚本 Bash 语法已验证；容器运行和恢复验证以 CI 结果为准。
+- Compose 配置语法、备份脚本 Bash 语法已验证；下述 CI 已实际执行容器运行和 PostgreSQL 恢复。
 
 ## 本地全量检查
 
@@ -28,10 +28,14 @@
 
 ## 远程与容器验证
 
-私有仓库、工作分支和 [PR #1](https://github.com/HuLinger/hulinger-ai-hub/pull/1) 已创建。首次 CI 的规范、lint、类型、数据库测试、生产构建、生产依赖审计及 gitleaks 通过；随后 Docker 发现设计令牌文件被忽略，已修正。最终容器启动/重启和隔离恢复结果待最后 CI 完成归档。
+仓库、工作分支和 [PR #1](https://github.com/HuLinger/hulinger-Information-Gathering-Station/pull/1) 已创建。[CI 运行 41828527974](https://github.com/HuLinger/hulinger-Information-Gathering-Station/actions/runs/41828527974) 对提交 `ae30fcf8596aaf970bb1f4bf60192e300e39197a` 全部通过：规范、lint、类型、27 项单元/真实数据库测试、生产构建、生产依赖审计、gitleaks 及 Docker 镜像构建。
 
-2026-11-04 对 `main` 请求启用必需 PR/检查、禁止强推删除及管理员保护，GitHub 返回 HTTP 403：私有仓库需 Pro。仓库保持私有；没有启用或假称远程保护。当前可审查上传成果，生产上线前须开通支持私有保护的方案并实际启用规则。
+- Compose 在 Ubuntu CI 中实际执行首次迁移、db/worker/web 健康启动、未登录业务 API 返回 401、web/worker 重启后健康检查。
+- `pg_dump --format=custom` → 独立恢复库 → `pg_restore` → 重跑迁移实际通过；核对记录数、中文备注、收藏、人工覆盖、标签、实体与来源关系、排除状态、关注、迁移记录、pg-boss 所有权及 web/worker 权限。清理演练库与合成行并恢复 worker 后健康检查通过。
+- 这证明 CI 的容器与逻辑备份恢复路径，不代表目标服务器 HTTPS、异地 restic 存储、真实告警或 RPO/RTO 已验证。
+
+2026-11-04 用户明确要求仓库更名并公开，已执行为 `HuLinger/hulinger-Information-Gathering-Station`。`main` 已实际启用必需 PR、`Repository baseline` 状态检查、分支需最新、会话解决及管理员保护，禁止强推和删除；单人阶段批准人数设为 0。实际设置导出见 [GitHub 核验记录](github-settings.json)，决定见 [ADR 0004](../adr/0004-public-source-repository.md)。此前私有状态的套餐限制不再作为当前缺项。
 
 ## 当前部署缺项
 
-域名/HTTPS、目标服务器可用资源与网络、每日异地加密备份、真实告警送达和目标环境恢复演练尚未配置。远程分支保护须按账户支持能力实际核实。全部满足 [上线门禁](../production-readiness.md) 后才可称生产上线。
+域名/HTTPS、目标服务器可用资源与网络、每日异地加密备份、真实告警送达和目标环境恢复演练尚未配置。全部满足 [上线门禁](../production-readiness.md) 后才可称生产上线。

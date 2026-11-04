@@ -2,13 +2,13 @@
 
 给自己使用的私有 AI 信息集合工具：自动收集公开模型公告与 GitHub 开源项目，保留可核验来源，在电脑和手机上阅读、查找、整理和导出。
 
-**当前状态：首版实现与验证。** 提供源码、数据库迁移、Docker Compose、拥有者初始化命令和部署手册。仓库为 [HuLinger/hulinger-ai-hub](https://github.com/HuLinger/hulinger-ai-hub)（私有，需要授权访问）。尚未部署到用户服务器；域名、异地备份、告警和目标服务器恢复演练须按 [上线门禁](docs/production-readiness.md) 落实。
+**当前状态：首版部署候选。** 提供源码、数据库迁移、Docker Compose、拥有者初始化命令和部署手册。公开代码仓库为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)。网站内容由登录与 MFA 保护。尚未部署到用户服务器；域名、异地备份、告警和目标服务器恢复演练须按 [上线门禁](docs/production-readiness.md) 落实。
 
 ## 最新更新
 
 ### 2026-11-04
 
-首版资讯阅读、模型/项目档案、自动采集、个人整理、JSON 导出与双重认证进入实现验证；新增 Docker 私有部署及备份恢复流程。完善异常响应重试、搜索状态与键盘焦点恢复。详情见 [发布说明](docs/releases/release-notes.md) 和 [变更记录](CHANGELOG.md)。
+首版资讯阅读、模型/项目档案、自动采集、个人整理、JSON 导出与双重认证已完成本地与 CI 验证；Docker 启动、重启及隔离数据库恢复通过。代码仓库按用户要求更名并公开，完善异常响应重试、搜索状态与键盘焦点恢复。详情见 [发布说明](docs/releases/release-notes.md) 和 [变更记录](CHANGELOG.md)。
 
 ## 首版能力
 
@@ -54,12 +54,12 @@ docker version
 docker compose version
 git --version
 openssl version
-git clone git@github.com:HuLinger/hulinger-ai-hub.git
-cd hulinger-ai-hub
+git clone https://github.com/HuLinger/hulinger-Information-Gathering-Station.git
+cd hulinger-Information-Gathering-Station
 git rev-parse HEAD
 ```
 
-私有仓库需要自己的 GitHub SSH 身份或只读 deploy key；不要将令牌写进克隆 URL。使用发布记录中的完整提交或经过验证的版本，不直接部署未验证的工作分支。
+公开仓库可通过上面的 HTTPS 地址直接克隆，无需 GitHub 令牌。使用发布记录中的完整提交或经过验证的版本，不直接部署未验证的工作分支。
 
 ### 2. 配置域名和独立密钥
 
