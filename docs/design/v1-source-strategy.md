@@ -1,6 +1,6 @@
 # 首版来源与自动汇总策略
 
-日期：2026-11-04。状态：产品设计，尚未接入采集器或启用来源。关联：[首版产品设计](v1-product-design.md)。
+日期：2026-11-04。状态：首版来源策略；采集器进入实现验证，生产来源默认关闭，须在部署环境验证后启用。关联：[首版产品设计](v1-product-design.md)。
 
 用户已确认：首版聚合网络 AI 信息，重点是模型更新、GitHub 有趣热门项目；自动采集并直接进入站内，允许人工修正；电脑和手机都可使用。少量官方工具生态作为设计默认补充。本文的候选来源、数量上限和检查节奏是可调整的设计默认，不表示已开通服务或已完成采集。
 
@@ -18,7 +18,8 @@
 | --- | --- | --- |
 | [OpenAI News RSS](https://openai.com/news/rss.xml) | HTTP 200；可解析 RSS，含 GUID、发布时间与分类 | 产品/模型公告；过滤无关分类 |
 | [OpenAI API 更新日志](https://developers.openai.com/api/docs/changelog) | 官方日期分组更新页 | API、模型与停用事件；网页适配验证后启用 |
-| [Claude Platform RSS](https://platform.claude.com/docs/en/release-notes/feed.xml) | 官方更新页提供订阅入口；HTTP 200，可解析 RSS | 模型、API、SDK 及控制台更新 |
+| [Claude Platform RSS](https://platform.claude.com/docs/en/release-notes/feed.xml) | 官方更新页提供订阅入口；初次入口核验 200，应用直连实测返回地区 307 跳转，当前拒绝启用 | 可选来源；必须在目标服务器重新通过连接与解析验证，不能绕过跳转校验 |
+| [Microsoft AI 官方订阅](https://blogs.microsoft.com/blog/tag/ai/feed/) | 应用安全网络链路实测 200，可解析 RSS | 首批稳定公告源；覆盖微软 AI 产品与生态动态，非具体模型事件按工具类收录 |
 | [Anthropic News](https://www.anthropic.com/news) | 官方公告页 | 重大模型与工具公告；网页适配验证后启用 |
 | [Gemini API 更新日志](https://aistudio.google.com/docs/changelog) | 官方日期分组更新页 | 模型、API、迁移及停用事件；网页适配验证后启用 |
 | [GitHub Search](https://docs.github.com/en/rest/search/search) | 官方仓库搜索 API | 按 AI 主题、关键词和明确条件发现公开项目 |

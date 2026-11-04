@@ -5,7 +5,7 @@
 ## 仓库与分支
 
 - 项目必须有自己的 `.git`，仓库根目录必须是本项目目录。禁止在父目录仓库执行本项目的暂存、提交、重置或推送。
-- `main`：通过对应阶段检查的稳定基线；只有完成上线门禁的应用版本才可部署。当前规范阶段的 `main` 不包含可运行产品。
+- `main`：通过对应阶段检查的稳定基线；候选版本可在隔离环境验证，生产使用仍须完成上线门禁。
 - 日常分支：`codex/<type>/<slug>`，type 为 `feat`、`fix`、`docs`、`refactor`、`test`、`chore`、`ci`、`perf`、`build` 或 `hotfix`。slug 使用小写英文、数字和短横线。
 - 每个分支只处理一个明确目的，例如 `codex/feat/information-search`；尽量短期合并，不建立长期 `develop` 分支。
 - 紧急修复从实际生产标签创建 `codex/hotfix/<slug>`，验证后合回 `main`，不得遗忘主干同步。
@@ -39,7 +39,7 @@ PR 必须说明问题、最终行为、验证、截图（适用时）、数据�
 
 ## 接入远程后的保护设置
 
-远程尚未创建或连接，下列设置是待办，仓库内的 YAML 不会自动启用分支保护：
+远程已创建为私有仓库 [HuLinger/hulinger-ai-hub](https://github.com/HuLinger/hulinger-ai-hub)。下列设置须核实实际生效；仓库内的 YAML 不会自动启用分支保护，结果记录在 [验收记录](verification/v1-validation.md)：
 
 1. 默认私有仓库，默认分支 `main`；确认所用托管方案支持私有仓库规则保护。
 2. 要求 PR 合并、会话解决、状态检查通过；必须检查名称为 `Repository baseline`，应用建立后加入真正的构建与测试检查。

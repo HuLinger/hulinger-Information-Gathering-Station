@@ -1,0 +1,127 @@
+name: hulinger
+
+x-app: &app
+  image: ${HULINGER_IMAGE:-hulinger-hub:local}
+  build: .
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp:size=128m,mode=1777
+    - /app/.next/cache:size=64m,uid=1000,gid=1000,mode=0700
+  security_opt:
+    - no-new-privileges:true
+  cap_drop: [ALL]
+  networks: [backend]
+
+x-auth: &auth
+  NODE_ENV: production
+  APP_URL: ${APP_URL:?Set APP_URL to your HTTPS origin}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Generate BETTER_AUTH_SECRET}
+
+services:
+  db:
+    image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hulinger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD}
+    volumes:
+      - database:/var/lib/postgresql
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U postgres -d hulinger']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: &logging
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+
+  migrate:
+    <<: *app
+    restart: 'no'
+    command: [npm, run, migrate]
+    environment:
+      <<: *auth
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD}@db:5432/hulinger
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Generate APP_DB_PASSWORD}
+      WORKER_DB_PASSWORD: ${WORKER_DB_PASSWORD:?Generate WORKER_DB_PASSWORD}
+    depends_on:
+      db: {condition: service_healthy}
+    logging: *logging
+
+  worker:
+    <<: *app
+    restart: unless-stopped
+    command: [npm, run, worker]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://hub_worker:${WORKER_DB_PASSWORD:?Generate WORKER_DB_PASSWORD}@db:5432/hulinger
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    stop_grace_period: 45s
+    healthcheck:
+      test: [CMD, node, --input-type=module, -e, "import pg from 'pg'; const p=new pg.Pool({connectionString:process.env.DATABASE_URL,connectionTimeoutMillis:3000}); try { const r=await p.query(\"SELECT 1 FROM worker_heartbeats WHERE id='collector' AND seen_at>now()-interval '3 minutes'\"); process.exitCode=r.rowCount?0:1; } catch { process.exitCode=1; } finally { await p.end(); }"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    logging: *logging
+
+  web:
+    <<: *app
+    restart: unless-stopped
+    environment:
+      <<: *auth
+      DATABASE_URL: postgresql://hub_app:${APP_DB_PASSWORD:?Generate APP_DB_PASSWORD}@db:5432/hulinger
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      worker: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
+    restart: unless-stopped
+    ports: ['80:80', '443:443', '443:443/udp']
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?Set SITE_DOMAIN to your domain without protocol}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [backend]
+    depends_on:
+      web: {condition: service_healthy}
+    security_opt: [no-new-privileges:true]
+    logging: *logging
+
+  admin:
+    <<: *app
+    profiles: [tools]
+    command: [npm, run, owner]
+    environment:
+      <<: *auth
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD}@db:5432/hulinger
+    depends_on:
+      db: {condition: service_healthy}
+    stdin_open: true
+    tty: true
+    logging:
+      driver: none
+
+networks:
+  backend:
+
+volumes:
+  database:
+  caddy_data:
+  caddy_config:

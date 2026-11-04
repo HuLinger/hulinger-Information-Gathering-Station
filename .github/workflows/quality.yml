@@ -18,7 +18,25 @@ jobs:
   repository-baseline:
     name: Repository baseline
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+        env:
+          POSTGRES_USER: hub_test
+          POSTGRES_PASSWORD: synthetic-ci-test-only
+          POSTGRES_DB: hulinger_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U hub_test -d hulinger_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://hub_test:synthetic-ci-test-only@127.0.0.1:5432/hulinger_test
+      APP_URL: http://127.0.0.1:3000
+      RUN_DB_TESTS: '1'
+      COLLECTOR_DATABASE_TEST: '1'
+      AUTH_TEST_DATABASE_URL: postgresql://hub_test:synthetic-ci-test-only@127.0.0.1:5432/hulinger_test
+      TEST_DATABASE_URL: postgresql://hub_test:synthetic-ci-test-only@127.0.0.1:5432/hulinger_test
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -28,8 +46,86 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .node-version
-      - name: Check repository baseline
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Generate isolated test authentication material
+        run: node -e "require('node:fs').appendFileSync(process.env.GITHUB_ENV,'BETTER_AUTH_SECRET='+require('node:crypto').randomBytes(32).toString('hex')+'\n')"
+      - name: Migrate test database
+        run: npm run migrate
+      - name: Check repository, lint, types and tests
         run: npm run check
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
+      - name: Build production application
+        run: npm run build
+      - name: Scan tracked history for secrets
+        run: >-
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb
+          git /repo --redact --no-banner
+      - name: Build deployment image
+        run: docker build -t hulinger:ci .
+      - name: Prepare isolated container configuration
+        run: |
+          mkdir -p .tmp
+          node --input-type=module -e "import{writeFileSync}from'node:fs';import{randomBytes}from'node:crypto';const lines=['SITE_DOMAIN=hub.example.test','APP_URL=https://hub.example.test','HULINGER_IMAGE=hulinger:ci'];for(const key of ['POSTGRES_PASSWORD','APP_DB_PASSWORD','WORKER_DB_PASSWORD','BETTER_AUTH_SECRET'])lines.push(key+'='+randomBytes(32).toString('hex'));writeFileSync('.tmp/ci.env',lines.join('\n')+'\n',{mode:384})"
+      - name: Verify Compose startup, authorization and restart
+        run: |
+          docker compose --env-file .tmp/ci.env -p hulinger_ci up -d --no-build --wait --wait-timeout 180 web worker
+          docker compose --env-file .tmp/ci.env -p hulinger_ci exec -T web node -e "Promise.all([fetch('http://127.0.0.1:3000/api/ready'),fetch('http://127.0.0.1:3000/api/hub')]).then(([ready,privateData])=>{if(ready.status!==200||privateData.status!==401)process.exit(1)})"
+          docker compose --env-file .tmp/ci.env -p hulinger_ci restart web worker
+          docker compose --env-file .tmp/ci.env -p hulinger_ci up -d --no-build --wait --wait-timeout 180 web worker
+          docker compose --env-file .tmp/ci.env -p hulinger_ci exec -T web node -e "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1))"
+      - name: Verify isolated PostgreSQL backup and restore
+        run: |
+          set -euo pipefail
+          dc=(docker compose --env-file .tmp/ci.env -p hulinger_ci)
+          "${dc[@]}" stop worker
+          "${dc[@]}" exec -T db psql -U postgres -d hulinger -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO entities(id,kind,name,url,followed) VALUES('ci-restore-entity','model','CI restore model','https://example.test/model',true);
+          INSERT INTO sources(id,name,kind,url,enabled) VALUES('ci-restore-source','CI restore source','rss','https://example.test/feed',false);
+          INSERT INTO events(id,title,kind,url,entity_id,source_name,personal,overrides,tags)
+          VALUES('ci-restore-event','CI restore event','model','https://example.test/event','ci-restore-entity','CI restore source','{"favorite":true,"later":true,"read":false,"archived":false,"note":"合成恢复备注"}','{"title":"人工覆盖"}',ARRAY['恢复演练']);
+          INSERT INTO source_records(id,source_id,external_id,event_id,data,excluded)
+          VALUES('ci-restore-record','ci-restore-source','synthetic-release-1','ci-restore-event','{"title":"source original"}',true);
+          SQL
+          "${dc[@]}" exec -T db pg_dump -U postgres -d hulinger --format=custom > .tmp/restore-check.dump
+          "${dc[@]}" exec -T db createdb -U postgres hulinger_restore_test
+          "${dc[@]}" run --rm --no-deps migrate sh -c 'export DATABASE_URL="${DATABASE_URL%/*}/hulinger_restore_test"; npm run migrate'
+          "${dc[@]}" exec -T db pg_restore -U postgres -d hulinger_restore_test --clean --if-exists --exit-on-error < .tmp/restore-check.dump
+          "${dc[@]}" run --rm --no-deps migrate sh -c 'export DATABASE_URL="${DATABASE_URL%/*}/hulinger_restore_test"; npm run migrate'
+          "${dc[@]}" exec -T db psql -U postgres -d hulinger_restore_test -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$ BEGIN
+            IF (SELECT count(*) FROM events) <> 1 THEN RAISE EXCEPTION 'restored event count differs'; END IF;
+            IF NOT EXISTS(SELECT 1 FROM events e JOIN entities n ON n.id=e.entity_id JOIN source_records r ON r.event_id=e.id JOIN sources s ON s.id=r.source_id
+              WHERE e.id='ci-restore-event' AND e.personal->>'note'='合成恢复备注' AND e.personal->>'favorite'='true'
+                AND e.overrides->>'title'='人工覆盖' AND e.tags=ARRAY['恢复演练'] AND n.followed AND r.excluded AND NOT s.enabled)
+              THEN RAISE EXCEPTION 'restored relationships or personal fields differ'; END IF;
+            IF (SELECT count(*) FROM hub_migrations) < 3 THEN RAISE EXCEPTION 'migration history missing'; END IF;
+            IF NOT EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='pgboss' AND tablename='job' AND tableowner='hub_worker')
+              THEN RAISE EXCEPTION 'queue ownership differs'; END IF;
+          END $$;
+          SET ROLE hub_app;
+          SELECT id FROM events WHERE id='ci-restore-event';
+          SELECT name FROM pgboss.queue LIMIT 1;
+          RESET ROLE;
+          SET ROLE hub_worker;
+          SELECT id FROM export_jobs LIMIT 1;
+          SELECT id FROM pgboss.job LIMIT 1;
+          SQL
+          "${dc[@]}" exec -T db dropdb -U postgres hulinger_restore_test
+          "${dc[@]}" exec -T db psql -U postgres -d hulinger -v ON_ERROR_STOP=1 <<'SQL'
+          DELETE FROM source_records WHERE id='ci-restore-record';
+          DELETE FROM events WHERE id='ci-restore-event';
+          DELETE FROM entities WHERE id='ci-restore-entity';
+          DELETE FROM sources WHERE id='ci-restore-source';
+          SQL
+          "${dc[@]}" up -d --no-build --wait --wait-timeout 180 web worker
+      - name: Container diagnostics on failure
+        if: failure()
+        run: docker compose --env-file .tmp/ci.env -p hulinger_ci logs --tail 80
+      - name: Remove isolated containers
+        if: always()
+        run: test ! -f .tmp/ci.env || docker compose --env-file .tmp/ci.env -p hulinger_ci down --volumes
       - name: Check pull request metadata
         if: github.event_name == 'pull_request'
         env:
