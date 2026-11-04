@@ -78,7 +78,7 @@ jobs:
       - name: Prepare isolated container configuration
         run: |
           mkdir -p .tmp
-          node --input-type=module -e "import{writeFileSync}from'node:fs';import{randomBytes}from'node:crypto';const lines=['SITE_DOMAIN=hub.example.test','APP_URL=https://hub.example.test','HULINGER_IMAGE=hulinger:ci'];for(const key of ['POSTGRES_PASSWORD','APP_DB_PASSWORD','WORKER_DB_PASSWORD','BETTER_AUTH_SECRET'])lines.push(key+'='+randomBytes(32).toString('hex'));writeFileSync('.tmp/ci.env',lines.join('\n')+'\n',{mode:384})"
+          node --input-type=module -e "import{writeFileSync}from'node:fs';import{randomBytes}from'node:crypto';const lines=['SITE_DOMAIN=hub.example.test','APP_URL=https://hub.example.test','HULINGER_IMAGE=hulinger:ci','BETTER_AUTH_SECRET='+process.env.BETTER_AUTH_SECRET];for(const key of ['POSTGRES_PASSWORD','APP_DB_PASSWORD','WORKER_DB_PASSWORD'])lines.push(key+'='+randomBytes(32).toString('hex'));writeFileSync('.tmp/ci.env',lines.join('\n')+'\n',{mode:384})"
       - name: Verify Compose startup, authorization and restart
         run: |
           docker compose --env-file .tmp/ci.env -p hulinger_ci up -d --no-build --wait --wait-timeout 180 web worker

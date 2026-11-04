@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Pool } from 'pg';
+import { verifyDriveHttpDownloads } from './helpers/drive-http-checks';
 
 const databaseURL = process.env.AUTH_TEST_DATABASE_URL ?? process.env.TEST_DATABASE_URL;
 
@@ -61,7 +62,7 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     const driveCreate = await import('../src/app/api/drive/uploads/route');
     const drivePart = await import('../src/app/api/drive/uploads/[id]/parts/[index]/route');
     const driveComplete = await import('../src/app/api/drive/uploads/[id]/complete/route');
-    const driveContent = await import('../src/app/api/drive/files/[id]/content/route');
+    const { downloadResponse } = await import('../src/server/drive/content');
     const driveAuth = await import('../src/app/api/drive/authorize-download/route');
     closeDrive = (await import('../src/server/drive/runtime')).closeDrive;
     const jars = new Map<string, Map<string, string>>();
@@ -132,10 +133,13 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     assert.equal((await driveComplete.POST(driveRequest(`/api/drive/uploads/${fileId}/complete`, 'POST', '{}'), context)).status, 200);
     const rangeRequest = driveRequest(`/api/drive/files/${fileId}/content`);
     rangeRequest.headers.set('range', 'bytes=2-8');
-    const ranged = await driveContent.GET(rangeRequest, context);
+    const ranged = await downloadResponse(rangeRequest, fileId);
     assert.equal(ranged.status, 206);
     assert.deepEqual(Buffer.from(await ranged.arrayBuffer()), bytes.subarray(2, 9));
     assert.match(ranged.headers.get('content-disposition')!, /^attachment;/);
+    const { default: downloadHandler } = await import('../src/pages/api/drive/files/[id]/content');
+    const { getDrive } = await import('../src/server/drive/runtime');
+    await verifyDriveHttpDownloads(downloadHandler, getDrive(), fileId, bytes, cookieHeaders('a'));
     const forwarded = driveRequest('/api/drive/authorize-download');
     forwarded.headers.set('x-forwarded-uri', `/api/drive/files/${fileId}/content`);
     forwarded.headers.set('x-forwarded-method', 'GET');
@@ -151,7 +155,7 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     assert.equal((await post('a', '/two-factor/disable', { password })).status, 404);
     await post('a', '/sign-out', {});
     await assert.rejects(requireOwner(cookieHeaders('a')), { status: 401 });
-    assert.equal((await driveContent.GET(driveRequest(`/api/drive/files/${fileId}/content`), context)).status, 401);
+    assert.equal((await downloadResponse(driveRequest(`/api/drive/files/${fileId}/content`), fileId)).status, 401);
     const challenge = await post('a', '/sign-in/email', { email: 'owner@example.test', password });
     assert.equal(challenge.status, 200);
     assert.equal(challenge.data.twoFactorRedirect, true);

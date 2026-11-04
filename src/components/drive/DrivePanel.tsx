@@ -128,7 +128,7 @@ export default function DrivePanel({ active }: { active: boolean }) {
     {sessionExpired && <Alert className="section-alert" type="warning" showIcon title="登录已失效" description={<>上传进度保留在服务器，重新登录后需选择原文件续传。并行下载离开本页后需重新开始。<a href="/login">前往登录</a></>} />}
     {error && <div className="section-alert"><ErrorNotice error={error} retry={() => { setLoading(true); refresh(); }} /></div>}
     {actionError && <Alert className="section-alert" type="error" showIcon title="操作未完成" description={actionError} closable onClose={() => setActionError('')} />}
-    {data && <div className="drive-capacity" aria-label="云盘容量"><div><span>文件占用</span><strong>{byteText(data.capacity.usedBytes)}</strong></div><div><span>上传预留</span><strong>{byteText(data.capacity.reservedBytes)}</strong></div><div><span>当前可用</span><strong>{byteText(data.capacity.availableBytes)}</strong></div></div>}
+    {data && <div className="drive-capacity" role="group" aria-label="云盘容量"><div><span>文件占用</span><strong>{byteText(data.capacity.usedBytes)}</strong></div><div><span>上传预留</span><strong>{byteText(data.capacity.reservedBytes)}</strong></div><div><span>当前可用</span><strong>{byteText(data.capacity.availableBytes)}</strong></div></div>}
     <div className="drive-controls surface-panel">
       <div className="drive-upload-heading"><div><h2>把文件放进自己的云盘</h2><p className="muted">支持大文件分片上传、中断后续传。多个文件按队列逐个传输。</p></div><Button type="primary" icon={<CloudUploadOutlined />} disabled={!data || sessionExpired} onClick={() => uploadInput.current?.click()}>上传文件</Button></div>
       <input ref={uploadInput} type="file" multiple hidden aria-label="选择上传文件" onChange={(event) => { transfers.addFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} />

@@ -6,7 +6,7 @@
 
 ## 最新更新
 
-### 2026-11-04
+### 2026-11-05
 
 新增大文件云盘，支持分片校验、可调并发、暂停续传、文件管理和下载；Windows 候选更新保留服务器本地提交，Linux 更新保留本地配置，备份和恢复同时覆盖数据库与文件。保留首版资讯采集、搜索整理、JSON 导出和双重认证。详情见 [发布说明](docs/releases/release-notes.md) 和 [变更记录](CHANGELOG.md)。
 
@@ -23,6 +23,8 @@
 当前不提供公共社区、多用户协作、任意 URL 抓取、全文镜像或数据导入。云盘文件独立管理，不执行、解压或在线预览，不提供匿名分享。摘要来自公开来源及人工整理，未接入付费 AI 生成。GitHub 排序是本站观测范围内的数据，不是官方全站榜单；没有足够真实快照时不虚构增长。
 
 云盘默认 16 MiB 分片、4 路并发（最多 8 路），默认单文件上限 1 TiB，空间不足时会拒绝创建上传。传输不设固定速率限制，但实际速度受客户端、服务器出口、磁盘与代理线路影响；Cloudflare Tunnel 同样可能成为瓶颈。并发调高不保证更快。上传未完成内容保留 7 天；刷新后重新选择同一文件并校验已保存分片即可继续。并行下载的暂停状态仅保留于当前页面，关闭页面后请重新选择保存位置；也可使用浏览器原生下载管理器。
+
+[云盘桌面截图](docs/verification/images/drive/files-1440.jpg) · [手机操作区](docs/verification/images/drive/mobile-files-390.jpg) · [云盘交互验收](docs/verification/drive-ui-validation.md) · [0.2.0 检查记录](docs/verification/v0.2-validation.md) · [512 MiB 本机基准与限制](docs/verification/drive-benchmark.md)
 
 ![桌面首页](docs/verification/screenshots/desktop-home.jpg)
 

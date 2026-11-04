@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, truncate, utimes, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, truncate, utimes, writeFile, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
@@ -172,6 +172,56 @@ test('real PostgreSQL and disk: resumable private drive preserves bytes, ownersh
       assert.equal(head.status, 200);
       assert.equal(head.headers.get('content-length'), String(bytes.length));
       assert.equal((await head.arrayBuffer()).byteLength, 0);
+    });
+
+    await suite.test('canceling a real file response before or after its first read closes the file without uncaught errors', async () => {
+      await reset();
+      const bytes = randomBytes(2 * MiB);
+      const { file } = await upload(bytes, 'cancel-download-fixture.bin');
+      await store.completeUpload(owner, file.id);
+      // Observe the actual file handles returned to production download(), without
+      // replacing the file stream or its cancellation/autoClose behavior.
+      const observed = store as unknown as { fileHandle(id: string, writable?: boolean): Promise<FileHandle> };
+      const original = observed.fileHandle.bind(store);
+      const handles: FileHandle[] = [];
+      observed.fileHandle = async (...args) => { const handle = await original(...args); handles.push(handle); return handle; };
+      const uncaught: Error[] = [];
+      const monitor = (error: Error) => { uncaught.push(error); };
+      process.on('uncaughtExceptionMonitor', monitor);
+      try {
+        for (let iteration = 0; iteration < 40; iteration++) {
+          const controller = new AbortController();
+          const response = await store.download(owner, file.id, new Request(`http://127.0.0.1/api/drive/files/${file.id}/content`, { signal: controller.signal }));
+          const handle = handles.at(-1)!;
+          assert.notEqual(handle.fd, -1);
+          const reader = response.body!.getReader();
+          if (iteration % 2) {
+            const first = await reader.read();
+            assert.equal(first.done, false);
+            assert.ok(first.value!.byteLength > 0 && first.value!.byteLength < bytes.byteLength);
+            assert.deepEqual(Buffer.from(first.value!), bytes.subarray(0, first.value!.byteLength));
+          }
+          // Cover immediate and late cancellation, with and without a request
+          // abort. An unstarted async iterator alone does not close a Node file.
+          if (iteration % 4 >= 2) controller.abort();
+          await reader.cancel().catch((error: unknown) => {
+            if (!controller.signal.aborted) throw error;
+          });
+          reader.releaseLock();
+          const deadline = Date.now() + 2000;
+          while (handle.fd !== -1 && Date.now() < deadline) await delay(5);
+          assert.equal(handle.fd, -1, 'A canceled HTTP response must close the underlying OS file handle.');
+          await assert.rejects(handle.stat(), { code: 'EBADF' });
+          await delay(0);
+        }
+        assert.deepEqual(uncaught, [], 'Consumer cancellation is not a server exception.');
+        assert.ok(handles.every((handle) => handle.fd === -1), 'Metadata and streaming handles must both close.');
+      } finally {
+        observed.fileHandle = original;
+        process.removeListener('uncaughtExceptionMonitor', monitor);
+        await Promise.all(handles.map((handle) => handle.close().catch(() => {})));
+      }
+      assert.deepEqual(Buffer.from(await (await download(file.id)).arrayBuffer()), bytes, 'A canceled download must not damage the stored file.');
     });
 
     await suite.test('quota reservation and upload limits remain correct under competing requests', async () => {

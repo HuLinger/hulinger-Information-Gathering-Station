@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, mkdir, open, readdir, realpath, statfs, unlink, type FileHandle } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { Readable } from 'node:stream';
+import { ReadableStream as WebReadableStream } from 'node:stream/web';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import type { DriveFile, DriveListing, DrivePart, DriveUpload } from '../../shared/drive-contracts';
 import { readDriveConfig, type DriveConfig } from './config';
@@ -365,7 +365,24 @@ export class DriveStore {
     if (request.method === 'HEAD' || file.size === 0) return new Response(null, { status: range ? 206 : 200, headers });
     const handle = await this.fileHandle(id).catch(storageError);
     const stream = handle.createReadStream({ start, end, highWaterMark: 256 * 1024, autoClose: true, signal: request.signal });
-    return new Response(Readable.toWeb(stream) as ReadableStream<Uint8Array>, { status: range ? 206 : 200, headers });
+    // Pull from the file's async iterator: toWeb can enqueue after cancellation
+    // during a scheduled resume tick (nodejs/node#64529).
+    const iterator = stream[Symbol.asyncIterator]();
+    const body = WebReadableStream.from({
+      [Symbol.asyncIterator]() {
+        return {
+          next: () => iterator.next(),
+          async return() {
+            // An iterator canceled before its first next() does not run its
+            // cleanup. Close the actual file even when no response byte was read.
+            stream.destroy();
+            try { return await iterator.return?.() ?? { done: true, value: undefined }; }
+            finally { await handle.close(); }
+          },
+        };
+      },
+    });
+    return new Response(body as ReadableStream<Uint8Array>, { status: range ? 206 : 200, headers });
   }
 
   async cleanup(): Promise<{ removed: number; orphaned: number }> {

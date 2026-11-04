@@ -39,8 +39,10 @@ restic restore latest --sparse --target "$restore_root"
 staging="$restore_root$HUB_BACKUP_STATE/staging"
 drive_original="$(cat "$staging/drive-path.txt")"
 [[ -n "$drive_original" && -f "$staging/hulinger.dump" && -d "$restore_root$drive_original/objects" ]]
+cmp "$HUB_ENV_FILE" "$staging/site.env"
+cp -- "$staging/site.env" .tmp/restored.env
 # Explicit -f excludes any saved local override: it may point at a production bind/volume.
-restore_dc=(docker compose --env-file .tmp/ci.env -p hulinger_restore_ci -f compose.yml)
+restore_dc=(docker compose --env-file .tmp/restored.env -p hulinger_restore_ci -f compose.yml)
 cleanup() { "${restore_dc[@]}" down --volumes; }
 trap cleanup EXIT
 "${restore_dc[@]}" up -d --wait --wait-timeout 90 db
