@@ -6,6 +6,7 @@ import { ArrowRightOutlined, CheckOutlined, ExportOutlined, PlusOutlined, StarOu
 import type { Entity, HubData, HubEvent } from '../shared/contracts';
 import { errorMessage, requestJson, type HubAction } from './api';
 import { dateText, EmptyState, ErrorNotice, eventDate, ExternalLink, KindIcon, numberValue, recordValue, stringArray, stringValue } from './format';
+import { useReturnFocus } from './useReturnFocus';
 
 function growthData(entity: Entity, window: string) { return recordValue(entity.data[window === '7d' ? 'growth7d' : 'growth24h']); }
 function discoveredAt(entity: Entity): string | null { const value = entity.data.firstDiscoveredAt ?? entity.data.firstSeenAt ?? recordValue(entity).created_at; return typeof value === 'string' ? value : null; }
@@ -63,6 +64,7 @@ export default function EntitiesPanel({ entities, kind, act, onOpen, onSources }
 }
 
 export function EntityDetail({ entity, epoch, act, onClose, onEvent }: { entity: Entity; epoch: number; act: HubAction; onClose: () => void; onEvent: (event: HubEvent) => void }) {
+  useReturnFocus();
   const [events, setEvents] = useState<HubEvent[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);

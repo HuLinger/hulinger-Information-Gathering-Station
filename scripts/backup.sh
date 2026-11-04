@@ -27,7 +27,7 @@ test -s "$staging/hulinger.dump"
 "${compose[@]}" exec -T db pg_restore --list <"$staging/hulinger.dump" >/dev/null
 cp -- "$HUB_DIR/.env" "$staging/site.env"
 cp -- "$HUB_DIR/compose.yml" "$HUB_DIR/Caddyfile" "$staging/"
-git -C "$HUB_DIR" rev-parse HEAD >"$staging/release.txt"
+git -c safe.directory="$HUB_DIR" -C "$HUB_DIR" rev-parse HEAD >"$staging/release.txt"
 "${compose[@]}" images >>"$staging/release.txt"
 
 backup_host="${BACKUP_HOST:-hulinger-production}"

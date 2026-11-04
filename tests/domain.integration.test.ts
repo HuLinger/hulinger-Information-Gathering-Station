@@ -47,3 +47,29 @@ test('10,000 synthetic records preserve bounded search and list latency',{skip:!
     const p95=times.sort((a,b)=>a-b)[18];console.log(`10k synthetic query p95: ${p95.toFixed(1)}ms on local PostgreSQL`);assert(p95<=500,`p95 ${p95.toFixed(1)}ms exceeds 500ms budget`);
   }finally {await query('DELETE FROM events WHERE id LIKE $1',[`${prefix}-%`]);}
 });
+
+test('undo merge takes all event locks in canonical order',{skip:!enabled},async()=>{
+  const prefix=`lock-${randomUUID()}`;const events:HubEvent[]=[];const holder=await pool.connect();let undo:Promise<unknown>|undefined;
+  try {
+    for(let i=0;i<2;i++)events.push((await executeDomain({action:'create',title:prefix,summary:'',kind:'model',url:`https://example.com/${prefix}/${i}`,tags:[],note:''}) as {event:HubEvent}).event);
+    events.sort((a,b)=>a.id.localeCompare(b.id));const [first,target]=events;
+    const merged=(await executeDomain({action:'merge',ids:[target.id,first.id],revisions:{[first.id]:first.revision,[target.id]:target.revision},title:prefix,summary:'',personal:defaultPersonal,tags:[]}) as {event:HubEvent}).event;
+    await holder.query('BEGIN');await holder.query('SELECT id FROM events WHERE id=$1 FOR UPDATE',[first.id]);
+    undo=executeDomain({action:'undoMerge',id:target.id,revision:merged.revision});
+    // Attach a handler immediately; the original promise is still asserted below.
+    void undo.catch(()=>undefined);
+    // Wait until the undo transaction is actually blocked on the held row.
+    let waiting=false;
+    for(let i=0;i<100;i++) {const rows=await query<{waiting:boolean}>("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND query LIKE 'SELECT * FROM events WHERE id=%') AS waiting");if(rows[0].waiting){waiting=true;break;}await new Promise(resolve=>setTimeout(resolve,10));}
+    assert.equal(waiting,true,'undo did not reach its event lock');
+    await holder.query("SET LOCAL lock_timeout='1s'");
+    // If undo locked its larger target first, this would time out or deadlock.
+    await holder.query('SELECT id FROM events WHERE id=$1 FOR UPDATE',[target.id]);
+    await holder.query('COMMIT');await undo;
+    assert.equal((await getDetail(first.id)).event.status,'active');
+  }finally {
+    await holder.query('ROLLBACK');holder.release();await undo?.catch(()=>undefined);
+    await query('DELETE FROM merge_operations WHERE target_id=ANY($1::text[])',[events.map(e=>e.id)]);
+    await query('DELETE FROM events WHERE id=ANY($1::text[])',[events.map(e=>e.id)]);
+  }
+});

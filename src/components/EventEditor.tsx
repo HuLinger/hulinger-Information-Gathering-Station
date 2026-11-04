@@ -5,10 +5,12 @@ import { Alert, App, Button, Form, Input, Modal, Select, Space } from 'antd';
 import type { Entity, HubEvent, Kind } from '../shared/contracts';
 import { ApiError, errorMessage, requestJson, type HubAction } from './api';
 import { kindOptions, safeUrl } from './format';
+import { useReturnFocus } from './useReturnFocus';
 
 interface Values { title: string; summary?: string; kind: Kind; url?: string; entity_id?: string; tags?: string[]; note?: string; published_at?: string }
 
 export default function EventEditor({ event, entities, act, onClose }: { event?: HubEvent; entities: Entity[]; act: HubAction; onClose: () => void }) {
+  useReturnFocus('.detail-actions [data-edit-trigger], #main-content h1');
   const [form] = Form.useForm<Values>();
   const { modal } = App.useApp();
   const [pending, setPending] = useState(false);

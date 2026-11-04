@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { pool, query } from '../src/server/db';
+import { pool, query, transaction } from '../src/server/db';
 import { persistItem, cleanupTrash } from '../src/server/collector/storage';
+import { DomainError, executeDomain } from '../src/server/domain';
 import type { CollectedItem } from '../src/server/collector/domain';
 import type { HubEvent } from '../src/shared/contracts';
 
@@ -45,6 +46,62 @@ test('真实PostgreSQL：幂等、人工覆盖、修订、拆分保护及删除�
     await query('INSERT INTO separate_records(first_id,second_id) VALUES($1,$2)', [records[0].id, records[1].id]);
     await persistItem(sourceB, { ...linkedItem, summary: 'Rechecked after split' });
     assert.equal((await query<{ event_id: string }>('SELECT event_id FROM source_records WHERE source_id=$1', [sourceB.id]))[0].event_id, splitId);
+
+    let signalLocked!: () => void;
+    let releaseOwner!: () => void;
+    const ownerLocked = new Promise<void>((resolve) => { signalLocked = resolve; });
+    const mayUpdateRecords = new Promise<void>((resolve) => { releaseOwner = resolve; });
+    const ownerOperation = transaction(async (client) => {
+      await client.query('SELECT id FROM events WHERE id=$1 FOR UPDATE', [first.id]);
+      signalLocked();
+      await mayUpdateRecords;
+      await client.query('UPDATE source_records SET last_seen=last_seen WHERE event_id=$1', [first.id]);
+    });
+    await ownerLocked;
+    const concurrentCollection = persistItem(sourceA, { ...item, summary: 'Concurrent upstream update' });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    releaseOwner();
+    await Promise.all([ownerOperation, concurrentCollection]);
+    assert.equal((await query<HubEvent>('SELECT * FROM events WHERE id=$1', [first.id]))[0].personal.note, 'My private note');
+
+    const sharedItem = { ...item, externalId: 'concurrent-manual-item', url: `${item.url}/concurrent`, title: `${prefix} concurrent create` };
+    const blocker = await pool.connect();
+    let outcomes: PromiseSettledResult<unknown>[] = [];
+    try {
+      await blocker.query('BEGIN');
+      // Let duplicate reads finish while both insert paths wait. Without a
+      // shared URL lock each path sees no event and inserts its own copy.
+      await blocker.query('LOCK TABLE events IN SHARE MODE');
+      const operations = Promise.allSettled([
+        executeDomain({ action: 'create', title: sharedItem.title, summary: 'Manual summary', kind: sharedItem.kind, url: sharedItem.url, published_at: sharedItem.publishedAt, tags: [], note: '' }),
+        persistItem(sourceB, sharedItem),
+      ]);
+      try {
+        let waiting = false;
+        for (let attempt = 0; attempt < 200; attempt += 1) {
+          const rows = await query<{ count: number }>(`SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname=current_database()
+            AND wait_event_type='Lock' AND (query LIKE 'INSERT INTO events(%' OR query LIKE 'SELECT pg_advisory_xact_lock(hashtextextended(%')`);
+          if (rows[0].count >= 2) { waiting = true; break; }
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        assert.equal(waiting, true, 'Both create paths must reach the controlled lock barrier');
+      } finally {
+        await blocker.query('ROLLBACK');
+        outcomes = await operations;
+      }
+    } finally {
+      await blocker.query('ROLLBACK');
+      blocker.release();
+    }
+    const sharedEvents = await query<HubEvent>('SELECT * FROM events WHERE url=$1', [sharedItem.url]);
+    ids.push(...sharedEvents.map((event) => event.id));
+    assert.equal(outcomes[1].status, 'fulfilled', 'Collection must attach to the single event');
+    if (outcomes[0].status === 'rejected') {
+      assert(outcomes[0].reason instanceof DomainError && outcomes[0].reason.code === 'DUPLICATE');
+    }
+    assert.equal(sharedEvents.length, 1, 'Manual creation and collection must not create duplicate events');
+    const sharedRecords = await query<{ event_id: string }>('SELECT event_id FROM source_records WHERE source_id=$1 AND external_id=$2', [sourceB.id, sharedItem.externalId]);
+    assert.deepEqual(sharedRecords, [{ event_id: sharedEvents[0].id }]);
 
     await query(`UPDATE events SET status='trash',deleted_at=now()-interval '31 days' WHERE id=$1`, [first.id]);
     const beforeTrashRecord = (await query<{ data: unknown }>('SELECT data FROM source_records WHERE source_id=$1', [sourceA.id]))[0].data;

@@ -21,5 +21,6 @@ test-results
 playwright-report
 docs
 tests
-design
+design/*
+!design/tokens.json
 *.tsbuildinfo

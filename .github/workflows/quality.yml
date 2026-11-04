@@ -122,7 +122,7 @@ jobs:
           "${dc[@]}" up -d --no-build --wait --wait-timeout 180 web worker
       - name: Container diagnostics on failure
         if: failure()
-        run: docker compose --env-file .tmp/ci.env -p hulinger_ci logs --tail 80
+        run: test ! -f .tmp/ci.env || docker compose --env-file .tmp/ci.env -p hulinger_ci logs --tail 80
       - name: Remove isolated containers
         if: always()
         run: test ! -f .tmp/ci.env || docker compose --env-file .tmp/ci.env -p hulinger_ci down --volumes

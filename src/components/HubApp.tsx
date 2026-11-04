@@ -7,7 +7,7 @@ import type { InputRef } from 'antd';
 import { AppstoreOutlined, ArrowRightOutlined, BookOutlined, CheckOutlined, DeleteOutlined, DownOutlined, FilterOutlined, GithubOutlined, HomeOutlined, LinkOutlined, LogoutOutlined, MenuOutlined, MoreOutlined, PlusOutlined, SearchOutlined, SettingOutlined, SyncOutlined, UserOutlined, WifiOutlined } from '@ant-design/icons';
 import type { HubData, HubEvent, Personal } from '../shared/contracts';
 import { ApiError, errorMessage, postJson, requestJson, type AuthStatus, type HubAction } from './api';
-import { EmptyState, ErrorNotice, kindOptions, recordValue, sourceHealth } from './format';
+import { EmptyState, ErrorNotice, kindOptions, recordValue, sourceHealth, stringArray, stringValue } from './format';
 import EventCard from './EventCard';
 import EventEditor from './EventEditor';
 import EventDetail, { type EventDetailData } from './EventDetail';
@@ -37,6 +37,7 @@ const titles: Record<View, { title: string; subtitle: string }> = {
 const sectionItems = [{ key: 'favorite', label: '收藏' }, { key: 'later', label: '稍后读' }, { key: 'archived', label: '归档' }, { key: 'review', label: '需核对' }, { key: 'trash', label: '回收站' }];
 const validSections = [...sectionItems.map((item) => item.key), 'excluded'];
 const normalizeView = (value: string): View => views.includes(value as View) ? value as View : 'feed';
+const viewStorageKey = (view: View, section: string) => `hulinger-view-${view}-${view === 'mine' ? section : 'default'}`;
 interface Filters { kind?: string; source?: string; tag?: string; from?: string; to?: string; dateUnknown?: boolean }
 
 export default function HubApp({ initialView, initialSection, initialEventId, initialEntityId }: { initialView: string; initialSection: string; initialEventId: string | null; initialEntityId: string | null }) {
@@ -73,7 +74,7 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
 
   const restoreViewState = useCallback((nextView: View, nextSection: string) => {
     let saved: Record<string, unknown> = {};
-    try { saved = recordValue(JSON.parse(window.sessionStorage.getItem(`hulinger-view-${nextView}-${nextSection}`) ?? '{}')); } catch { /* Session preferences are optional. */ }
+    try { saved = recordValue(JSON.parse(window.sessionStorage.getItem(viewStorageKey(nextView, nextSection)) ?? '{}')); } catch { /* Session preferences are optional. */ }
     const savedFilters = recordValue(saved.filters);
     const restoredFilters: Filters = {};
     if (kindOptions.some((option) => option.value === savedFilters.kind)) restoredFilters.kind = String(savedFilters.kind);
@@ -111,7 +112,7 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
 
   useEffect(() => {
     if (!sessionReady) return;
-    try { window.sessionStorage.setItem(`hulinger-view-${view}-${section}`, JSON.stringify({ q, filters, feedTab, page })); } catch { /* Browsing still works when session storage is unavailable. */ }
+    try { window.sessionStorage.setItem(viewStorageKey(view, section), JSON.stringify({ q, filters, feedTab, page })); } catch { /* Browsing still works when session storage is unavailable. */ }
   }, [sessionReady, view, section, q, filters, feedTab, page]);
 
   useEffect(() => {
@@ -194,6 +195,12 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
   }
   const currentTitle = navItems.find((item) => item.key === view)?.label ?? (view === 'search' ? '全局搜索' : '设置');
   const entity = data?.entities.find((item) => item.id === entityId);
+  const matchingEntities = q ? data?.entities.filter((item) => [
+    item.name,
+    stringValue(item.data.description, ''),
+    ...stringArray(item.data.aliases),
+    ...stringArray(item.data.topics),
+  ].join(' ').toLocaleLowerCase().includes(q.toLocaleLowerCase())) ?? [] : [];
   const activeFilters = Object.entries(filters).filter(([, value]) => !!value);
   const showList = view === 'feed' || view === 'mine' || view === 'search';
   const showRail = view === 'feed';
@@ -234,14 +241,14 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
       <div className="event-list-surface">{data.events.slice(view === 'feed' && page === 1 && !managing ? 1 : 0).map((event) => <EventCard key={event.id} event={event} managing={managing} selected={selectedIds.includes(event.id)} selectionDisabled={loading} onSelect={(checked) => setSelectedIds((old) => checked ? [...new Set([...old, event.id])] : old.filter((id) => id !== event.id))} onOpen={() => openEvent(event)} pending={mutationPending} onFavorite={() => void toggleFavorite(event)} />)}</div>
       {data.total > 20 && <div className="list-pagination"><Pagination current={page} total={data.total} pageSize={20} showSizeChanger={false} onChange={(next) => { setPage(next); setSelectedIds([]); setLoading(true); window.scrollTo({ top: 0 }); }} showTotal={(total) => `共 ${total} 条`} /></div>}
     </div>}
-    {view === 'search' && q && !!data?.entities.length && <section className="search-entities"><h2>相关模型与项目</h2><div className="search-entity-list">{data.entities.map((item) => <Button key={item.id} onClick={() => openEntity(item.id)} icon={item.kind === 'project' ? <GithubOutlined /> : <AppstoreOutlined />}>{item.name} <ArrowRightOutlined /></Button>)}</div></section>}
+    {view === 'search' && matchingEntities.length > 0 && <section className="search-entities"><h2>相关模型与项目</h2><div className="search-entity-list">{matchingEntities.map((item) => <Button key={item.id} onClick={() => openEntity(item.id)} icon={item.kind === 'project' ? <GithubOutlined /> : <AppstoreOutlined />}>{item.name} <ArrowRightOutlined /></Button>)}</div></section>}
   </>;
 
   return <div className={`hub-app density-${density}`}>
     <a href="#main-content" className="skip-link">跳到主要内容</a>
-    <aside className="app-sidebar"><button className="brand" onClick={() => navigate('feed')} aria-label="Hulinger 首页"><strong>HULINGER</strong><span>AI 情报与资料</span></button>{navigation}<div className="sidebar-bottom"><Dropdown menu={moreMenu} trigger={['click']} placement="topLeft"><button className="user-menu"><UserOutlined /><span>{auth?.user?.name || 'Hulinger'}</span><MoreOutlined /></button></Dropdown></div></aside>
+    <aside className="app-sidebar"><button className="brand" onClick={() => navigate('feed')} aria-label="Hulinger 首页"><strong className="brand-full">HULINGER</strong><strong className="brand-short" aria-hidden="true">HL</strong><span>AI 情报与资料</span></button>{navigation}<div className="sidebar-bottom"><Dropdown menu={moreMenu} trigger={['click']} placement="topLeft"><button className="user-menu"><UserOutlined /><span>{auth?.user?.name || 'Hulinger'}</span><MoreOutlined /></button></Dropdown></div></aside>
     <header className="app-header"><div className="mobile-header-brand"><Button icon={<MenuOutlined />} type="text" aria-label="打开导航" onClick={() => setMobileNav(true)} /><strong>HULINGER</strong></div><div className="breadcrumb"><span>工作空间</span><span>/</span><strong>{currentTitle}</strong></div><div className="header-search"><Input ref={view === 'search' ? undefined : searchRef} prefix={<SearchOutlined />} suffix={<kbd>⌘ K</kbd>} aria-label="搜索 AI 动态、模型、开源项目" placeholder="搜索 AI 动态、模型、开源项目…" value={searchText} onChange={(change) => setSearchText(change.target.value)} onCompositionStart={() => { searchComposing.current = true; }} onCompositionEnd={() => { searchComposing.current = false; }} onPressEnter={(event) => { if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) search(searchText); }} /></div><div className="mobile-header-actions"><Button icon={<SearchOutlined />} type="text" aria-label="全局搜索" onClick={() => navigate('search')} /><Dropdown menu={moreMenu} trigger={['click']}><Button type="text" icon={<UserOutlined />}>更多</Button></Dropdown></div></header>
-    <main className="app-main" id="main-content"><div className="page-intro">{view === 'feed' && <p className="today-date">{new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date())}</p>}<h1>{titles[view].title}</h1><p className="page-description">{titles[view].subtitle}</p></div>
+    <main className="app-main" id="main-content"><div className="page-intro">{view === 'feed' && <p className="today-date">{new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date())}</p>}<h1 tabIndex={-1}>{titles[view].title}</h1><p className="page-description">{titles[view].subtitle}</p></div>
       {error && <div className="section-alert"><ErrorNotice error={error} retry={reload} /></div>}
       {loading && data && <div className="refresh-status" role="status"><SyncOutlined spin /> 正在读取最新资料…</div>}
       <div className={showRail ? 'workspace-columns' : 'workspace-single'}>

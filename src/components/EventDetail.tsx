@@ -7,6 +7,7 @@ import type { Entity, HubEvent, Revision, Source } from '../shared/contracts';
 import { errorMessage, requestJson, type HubAction } from './api';
 import { dateText, ErrorNotice, ExternalLink, KindIcon, kindLabels, stringValue } from './format';
 import EventEditor from './EventEditor';
+import { useReturnFocus } from './useReturnFocus';
 
 export interface SourceRecord {
   id: string; source_id: string; external_id: string; event_id: string;
@@ -18,6 +19,7 @@ export default function EventDetail({ id, epoch, entities, sources, act, onClose
   id: string; epoch: number; entities: Entity[]; sources: Source[]; act: HubAction; onClose: () => void;
   onEntity: (id: string) => void; onMerge: (ids: string[]) => void; onSplit: (detail: EventDetailData) => void;
 }) {
+  useReturnFocus();
   const { modal } = App.useApp();
   const [detail, setDetail] = useState<EventDetailData | null>(null);
   const [error, setError] = useState('');
@@ -90,7 +92,7 @@ export default function EventDetail({ id, epoch, entities, sources, act, onClose
         <div className="detail-actions">
           <Button icon={event.personal.favorite ? <BookFilled /> : <BookOutlined />} type={event.personal.favorite ? 'primary' : 'default'} onClick={() => void change({ action: 'batch', ids: [id], personal: { favorite: !event.personal.favorite } }, event.personal.favorite ? '已取消收藏' : '已收藏')} loading={pending} aria-pressed={event.personal.favorite}>{event.personal.favorite ? '已收藏' : '收藏'}</Button>
           <Button icon={<ClockCircleOutlined />} onClick={() => void change({ action: 'batch', ids: [id], personal: { later: !event.personal.later } }, event.personal.later ? '已移出稍后读' : '已加入稍后读')} aria-pressed={event.personal.later}>{event.personal.later ? '移出稍后读' : '稍后读'}</Button>
-          <Button icon={<EditOutlined />} onClick={() => setEditing(true)} disabled={event.status === 'trash'}>修正 / 备注</Button>
+          <Button icon={<EditOutlined />} data-edit-trigger onClick={() => setEditing(true)} disabled={event.status === 'trash'}>修正 / 备注</Button>
           <ExternalLink href={event.url} className="external-action">阅读原文 <ExportOutlined /></ExternalLink>
         </div>
         <div className="detail-summary"><div className="eyebrow">{event.manual || Object.hasOwn(event.overrides, 'summary') ? '人工整理' : '来源摘要'}</div><p>{event.summary || '来源未提供摘要。你可以打开原文查看完整内容。'}</p></div>

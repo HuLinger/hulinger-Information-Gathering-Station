@@ -6,12 +6,14 @@ import type { HubData, HubEvent, Personal } from '../shared/contracts';
 import type { EventDetailData, SourceRecord } from './EventDetail';
 import { errorMessage, postJson, requestJson, type HubAction } from './api';
 import { stringValue } from './format';
+import { useReturnFocus } from './useReturnFocus';
 
 interface MergePreview { events: HubEvent[]; records: SourceRecord[]; conflicts: string[] }
 interface MergeValues { title: string; summary: string; tags: string[]; note: string; favorite: boolean; later: boolean; read: boolean; archived: boolean }
 const blankPersonal = (): Personal => ({ favorite: false, later: false, read: false, archived: false, note: '' });
 
 export function MergeDialog({ initialIds, candidates, act, onClose }: { initialIds: string[]; candidates: HubEvent[]; act: HubAction; onClose: () => void }) {
+  useReturnFocus('.detail-actions [data-edit-trigger], #main-content h1');
   const [ids, setIds] = useState(initialIds);
   const [options, setOptions] = useState(candidates.map((event) => ({ value: event.id, label: event.title })));
   const [preview, setPreview] = useState<MergePreview | null>(null);
@@ -76,6 +78,7 @@ export function MergeDialog({ initialIds, candidates, act, onClose }: { initialI
 interface SplitGroup { title: string; recordIds: string[]; tags: string[]; personal: Personal }
 
 export function SplitDialog({ detail, act, onClose }: { detail: EventDetailData; act: HubAction; onClose: () => void }) {
+  useReturnFocus('.detail-actions [data-edit-trigger], #main-content h1');
   const { event, records } = detail;
   const [groups, setGroups] = useState<SplitGroup[]>([
     { title: event.title, recordIds: records.slice(0, 1).map((record) => record.id), tags: event.tags, personal: { ...event.personal } },

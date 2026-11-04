@@ -6,6 +6,7 @@ import { ArrowRightOutlined, FileTextOutlined, GithubOutlined, ReloadOutlined, S
 import type { Source, SyncRun } from '../shared/contracts';
 import { errorMessage, type HubAction } from './api';
 import { dateText, EmptyState, ExternalLink, sourceHealth } from './format';
+import { FocusReturn } from './useReturnFocus';
 
 const runLabels: Record<string, string> = { queued: '排队中', pending: '等待执行', running: '同步中', success: '成功', completed: '成功', partial: '部分成功', failed: '失败', error: '失败', partial_success: '部分成功' };
 export function SourceIcon({ source }: { source: Source }) { return source.id.includes('github') ? <GithubOutlined /> : <FileTextOutlined />; }
@@ -50,7 +51,7 @@ export default function SourcesPanel({ sources, runs, act, onRefresh }: { source
       { title: '新增 / 更新', render: (_, run) => `${run.added} / ${run.updated}` },
       { title: '详情', render: (_, run) => <Button type="link" onClick={() => setSelectedRunId(run.id)}>查看 <ArrowRightOutlined /></Button> },
     ]} /></div>}
-    {selected && <Drawer open size="min(640px, 100vw)" title={selected.name} onClose={() => setSelectedId(null)}>
+    {selected && <FocusReturn><Drawer open size="min(640px, 100vw)" title={selected.name} onClose={() => setSelectedId(null)}>
       {error && <Alert type="error" showIcon title={error} className="section-alert" />}
       <Alert type={selected.error ? 'warning' : 'info'} showIcon title={sourceHealth(selected).label} description={sourceHealth(selected).description} className="section-alert" />
       <Descriptions column={1} items={[
@@ -69,8 +70,8 @@ export default function SourcesPanel({ sources, runs, act, onRefresh }: { source
       </Form>}
       <Space wrap className="section-top"><Button icon={<SyncOutlined />} disabled={!selected.enabled} loading={pendingId === selected.id} onClick={() => void action({ action: 'sync', id: selected.id }, '同步任务已排队')}>立即同步</Button><Button onClick={() => { setTab('runs'); setSelectedId(null); }}>查看同步任务</Button></Space>
       <p className="info-footnote">来源凭据由部署环境安全配置，此页面不会显示密钥。恢复采集只能补入来源仍然提供的内容，实际缺口会记录在覆盖情况中。</p>
-    </Drawer>}
-    {selectedRun && <Drawer open title="同步任务详情" size="min(600px, 100vw)" onClose={() => setSelectedRunId(null)}>
+    </Drawer></FocusReturn>}
+    {selectedRun && <FocusReturn><Drawer open title="同步任务详情" size="min(600px, 100vw)" onClose={() => setSelectedRunId(null)}>
       {error && <Alert type="error" showIcon title={error} className="section-alert" />}
       <Descriptions column={1} items={[
         { key: 'source', label: '来源', children: sources.find((source) => source.id === selectedRun.source_id)?.name ?? selectedRun.source_id },
@@ -82,6 +83,6 @@ export default function SourcesPanel({ sources, runs, act, onRefresh }: { source
       ]} />
       {selectedRun.error && <Alert type="error" showIcon title="采集未完整完成" description={selectedRun.error} className="section-alert" />}
       <Button className="section-top" icon={<ReloadOutlined />} loading={pendingId === selectedRun.source_id} onClick={() => void action({ action: 'sync', id: selectedRun.source_id }, '重试任务已排队')}>重新同步此来源</Button>
-    </Drawer>}
+    </Drawer></FocusReturn>}
   </section>;
 }

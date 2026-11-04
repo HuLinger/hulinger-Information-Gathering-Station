@@ -105,7 +105,9 @@ export async function listHub(params:URLSearchParams) {
   const [events,count,entities,sources,runs,later]=await Promise.all([
     query<HubEvent>(`SELECT e.* FROM events e WHERE ${where} ORDER BY COALESCE(e.published_at,e.discovered_at) DESC,e.id LIMIT 20 OFFSET ${bind((page-1)*20)}`,values),
     query<{count:string}>(`SELECT count(*) FROM events e WHERE ${where}`,values.slice(0,-1)),
-    query(`SELECT * FROM entities WHERE ($1::text IS NULL OR name ILIKE $1 OR data->>'description' ILIKE $1) AND ($2::boolean=false OR followed) ORDER BY followed DESC,name LIMIT 500`,[search?`%${search.replace(/[\\%_]/g,'\\$&')}%`:null,params.get('followed')==='1']),
+    // The entity catalog also supplies stable names/options in details and edits.
+    // Filtering it by an event's private-note search would hide its association.
+    query('SELECT * FROM entities ORDER BY followed DESC,name LIMIT 500'),
     query('SELECT * FROM sources ORDER BY name'), query('SELECT * FROM sync_runs ORDER BY started_at DESC LIMIT 50'),
     query<HubEvent>("SELECT * FROM events WHERE status='active' AND (personal->>'later')::boolean ORDER BY updated_at DESC LIMIT 5")
   ]);
@@ -119,7 +121,7 @@ export async function listHub(params:URLSearchParams) {
 export async function executeDomain(action:Action) {
   return transaction(async client=>{
     if(action.action==='create') {
-      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['manual:'+action.url]);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['content-url:'+action.url]);
       const duplicate=(await client.query<{id:string}>('SELECT id FROM events WHERE url=$1 AND status<>\'merged\' LIMIT 1',[action.url])).rows[0];
       if(duplicate) throw new DomainError(`此链接已存在，可查看或恢复已有内容。`,409,'DUPLICATE');
       const event=(await client.query<HubEvent>(`INSERT INTO events(id,title,summary,kind,url,published_at,published_precision,entity_id,source_name,manual,personal,tags,originals) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'人工补充',true,$9,$10,$11) RETURNING *`,[randomUUID(),action.title,action.summary,action.kind,action.url,action.published_at??null,action.published_at?(action.published_precision??'datetime'):'unknown',action.entity_id??null,{...defaultPersonal,note:action.note},action.tags,{title:action.title,summary:action.summary,kind:action.kind,entity_id:action.entity_id??null,tags:action.tags}])).rows[0];
@@ -193,13 +195,20 @@ export async function executeDomain(action:Action) {
       return {event:result};
     }
     if(action.action==='undoMerge') {
-      const target=await locked(client,action.id);assertRevision(target,action.revision);requireEditable(target);
-      const op=(await client.query<{id:string;snapshot:{events:HubEvent[];records:{id:string;event_id:string}[]}}>('SELECT * FROM merge_operations WHERE target_id=$1 AND NOT undone ORDER BY created_at DESC LIMIT 1 FOR UPDATE',[action.id])).rows[0];
-      if(!op)throw new DomainError('没有可撤销的合并',409);
+      type MergeOperation={id:string;snapshot:{events:HubEvent[];records:{id:string;event_id:string}[]}};
+      const observed=(await client.query<MergeOperation>('SELECT * FROM merge_operations WHERE target_id=$1 AND NOT undone ORDER BY created_at DESC LIMIT 1',[action.id])).rows[0];
+      if(!observed)throw new DomainError('没有可撤销的合并',409);
+      // Use the same global event order as merge/batch; the target need not be
+      // the smallest id. Recheck the operation only after taking event locks.
+      const lockedEvents=new Map<string,HubEvent>();
+      for(const eventId of [...new Set([action.id,...observed.snapshot.events.map(e=>e.id)])].sort())lockedEvents.set(eventId,await locked(client,eventId));
+      const target=lockedEvents.get(action.id)!;assertRevision(target,action.revision);requireEditable(target);
+      const op=(await client.query<MergeOperation>('SELECT * FROM merge_operations WHERE id=$1 AND target_id=$2 AND NOT undone FOR UPDATE',[observed.id,action.id])).rows[0];
+      if(!op)throw new DomainError('合并关系已变化，请刷新后重试。',409,'CONFLICT');
       const mergedRevision=(await client.query<Revision>("SELECT * FROM revisions WHERE event_id=$1 AND action='合并' ORDER BY created_at DESC LIMIT 1",[target.id])).rows[0];
       const comparable=(event:HubEvent)=>JSON.stringify({title:event.title,summary:event.summary,kind:event.kind,entity_id:event.entity_id,status:event.status,personal:{...event.personal,read:false},overrides:event.overrides,tags:event.tags,originals:event.originals});
       if(!mergedRevision?.after_data||comparable(target)!==comparable(mergedRevision.after_data))throw new DomainError('合并后已有新修改，请使用拆分分配最新内容。',409,'CONFLICT');
-      for(const old of [...op.snapshot.events].sort((a,b)=>a.id.localeCompare(b.id))) {const current=await locked(client,old.id);const restored=old.id===target.id?{...old,personal:{...old.personal,read:target.personal.read}}:old;await write(client,current,restored,'撤销合并');}
+      for(const old of [...op.snapshot.events].sort((a,b)=>a.id.localeCompare(b.id))) {const current=lockedEvents.get(old.id)!;const restored=old.id===target.id?{...old,personal:{...old.personal,read:target.personal.read}}:old;await write(client,current,restored,'撤销合并');}
       for(const record of op.snapshot.records) await client.query('UPDATE source_records SET event_id=$2 WHERE id=$1',[record.id,record.event_id]);
       await client.query('UPDATE merge_operations SET undone=true WHERE id=$1',[op.id]);return {id:action.id};
     }
