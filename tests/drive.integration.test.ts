@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, truncate, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
@@ -191,6 +191,50 @@ test('real PostgreSQL and disk: resumable private drive preserves bytes, ownersh
       await store.createUpload(owner, uploadInput('one.bin', Buffer.from('one')));
       await assert.rejects(store.createUpload(owner, uploadInput('two.bin', Buffer.from('two'))));
       await assert.rejects(async () => newStore({ reserveBytes: Number.MAX_SAFE_INTEGER }).createUpload(owner, uploadInput('no-space.bin', Buffer.from('space'))));
+    });
+
+    await suite.test('capacity does not reserve NTFS allocations twice and still reserves sparse holes', async (context) => {
+      await reset();
+      const size = 64 * MiB;
+      const { file } = await store.createUpload(owner, {
+        name: 'allocation-fixture.bin', size, lastModified: 0, fingerprint: digest(Buffer.from('allocation fixture')),
+      });
+      const object = join(storageRoot, 'objects', `${file.id}.bin`);
+      const allocation = (await stat(object)).blocks * 512;
+      const listing = await store.list(owner, { view: 'files' });
+      assert.equal(listing.capacity.reservedBytes, size, 'The public upload-progress reservation remains logical bytes.');
+      if (allocation >= size) {
+        assert.equal(listing.capacity.availableBytes, listing.capacity.freeBytes, 'Preallocated file space is already absent from disk free space.');
+      } else if (allocation === 0) {
+        assert.equal(listing.capacity.availableBytes, listing.capacity.freeBytes - size, 'A sparse empty upload still reserves every future byte.');
+      } else {
+        assert.ok(listing.capacity.availableBytes < listing.capacity.freeBytes);
+        assert.ok(listing.capacity.availableBytes >= listing.capacity.freeBytes - size);
+      }
+      context.diagnostic(`Actual ${process.platform} allocation: ${allocation} of ${size} bytes.`);
+      await store.writePart(owner, file.id, 0, partRequest(Buffer.alloc(MiB, 7)));
+      assert.equal((await store.list(owner, { view: 'files' })).capacity.reservedBytes, size - MiB);
+      await truncate(object, size - 1);
+      await assert.rejects(store.list(owner, { view: 'files' }), status(503));
+      await rm(object);
+      await assert.rejects(store.list(owner, { view: 'files' }), status(503));
+    });
+
+    await suite.test('storage readiness exercises real read/write/delete without leaving probe files', async () => {
+      await reset();
+      await Promise.all(Array.from({ length: 4 }, () => store.checkStorage()));
+      assert.deepEqual(await readdir(join(storageRoot, 'objects')), []);
+    });
+
+    await suite.test('storage readiness rejects a read-only object directory', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, async () => {
+      await reset();
+      const objects = join(storageRoot, 'objects');
+      await mkdir(objects, { recursive: true });
+      await chmod(objects, 0o500);
+      try {
+        await assert.rejects(store.checkStorage(), (error: unknown) => error instanceof Error && 'code' in error && ['EACCES', 'EPERM', 'EROFS'].includes(String(error.code)));
+      } finally { await chmod(objects, 0o700); }
+      assert.deepEqual(await readdir(objects), []);
     });
 
     await suite.test('completion and cancellation cannot both publish and remove a ready file', async () => {

@@ -47,7 +47,7 @@ trap cleanup EXIT
 "${restore_dc[@]}" run --rm --no-deps migrate
 "${restore_dc[@]}" exec -T db pg_restore -U postgres -d hulinger --clean --if-exists --exit-on-error <"$staging/hulinger.dump"
 "${restore_dc[@]}" run --rm --no-deps migrate
-"${restore_dc[@]}" run --rm --no-deps --user root -v "$restore_root$drive_original:/restore:ro" web sh -c 'cp -a --sparse=always /restore/. /data/drive/'
+"${restore_dc[@]}" run --rm --no-deps --user root --cap-add DAC_OVERRIDE --cap-add CHOWN --cap-add FOWNER -v "$restore_root$drive_original:/restore:ro" web sh -c 'cp -a --sparse=always /restore/. /data/drive/'
 "${restore_dc[@]}" exec -T db psql -U postgres -d hulinger -At -F $'\t' -v ON_ERROR_STOP=1 -c "SELECT 'events',count(*) FROM events UNION ALL SELECT 'entities',count(*) FROM entities UNION ALL SELECT 'sources',count(*) FROM sources UNION ALL SELECT 'drive_files',count(*) FROM drive_files UNION ALL SELECT 'drive_parts',count(*) FROM drive_parts;" >.tmp/restored-counts.tsv
 diff -u "$staging/counts.tsv" .tmp/restored-counts.tsv
 "${restore_dc[@]}" run --rm --no-deps web node --import tsx scripts/verify-drive-storage.ts

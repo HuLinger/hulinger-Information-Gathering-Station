@@ -186,14 +186,14 @@ sudo cat "$staging/hulinger.dump" | "${dc[@]}" exec -T db pg_restore -U postgres
 drive_source="$(sudo cat "$staging/drive-path.txt")"
 test -n "$drive_source"
 sudo test -d "/var/lib/hulinger-restore$drive_source/objects"
-"${dc[@]}" run --rm --no-deps --user root \
+"${dc[@]}" run --rm --no-deps --user root --cap-add DAC_OVERRIDE --cap-add CHOWN --cap-add FOWNER \
   -v "/var/lib/hulinger-restore$drive_source:/restore:ro" web sh -c 'cp -a --sparse=always /restore/. /data/drive/'
 "${dc[@]}" run --rm --no-deps web node --import tsx scripts/verify-drive-storage.ts
 ```
 
 任一步失败即停止，保持 web/worker 未启动；查清后在新的空恢复环境重试。不要发布部分恢复的数据库，也不要用直接复制运行中的 PostgreSQL 目录代替恢复。
 
-文件复制必须保留所属 UID/GID；上面的 `cp -a --sparse=always` 从快照恢复到**新建恢复卷**，与 restic 的 `--sparse` 配合，避免未完成上传的零区间占满实际磁盘。不要把旧生产文件卷挂进恢复项目，也不要把“数据库恢复成功、文件稍后再补”视为可用恢复。旧版没有云盘的快照 `drive-path.txt` 可为空，此时不执行文件复制；新版本迁移创建空云盘表后仍执行校验器。备份脚本首次引入之前的旧快照没有该清单，应先按其原版本说明恢复，再升级。
+文件复制必须保留所属 UID/GID；上面的 `cp -a --sparse=always` 从快照恢复到**新建恢复卷**，与 restic 的 `--sparse` 配合，避免未完成上传的零区间占满实际磁盘。临时恢复容器只为读取受限快照并保留归属增加三个 capability，退出即移除；常驻应用的 `cap_drop: [ALL]` 保持不变。不要把旧生产文件卷挂进恢复项目，也不要把“数据库恢复成功、文件稍后再补”视为可用恢复。旧版没有云盘的快照 `drive-path.txt` 可为空，此时不执行文件复制；新版本迁移创建空云盘表后仍执行校验器。备份脚本首次引入之前的旧快照没有该清单，应先按其原版本说明恢复，再升级。
 
 4. 对照 `counts.tsv` 核对事件、实体、来源、文件和分片数量。校验器逐一检查文件类型、大小、完整文件分片数量与全部已提交分片 SHA-256，含回收站及未完成上传；校验失败即停止，不启动 worker 清理。随后记录原来启用的来源，关闭它们并撤销旧会话，防演练自动访问来源；核对后再逐一启用。
 

@@ -18,9 +18,8 @@ const cookie = () => [...jars].map(([key, value]) => `${key}=${value}`).join('; 
 async function request(route: string, init: RequestInit = {}, proxy = false, authenticated = true) {
   const headers = new Headers(init.headers);
   headers.set('Origin', origin);
-  if (proxy) headers.set('Host', 'hub.example.test');
   if (authenticated && !headers.has('Cookie')) headers.set('Cookie', cookie());
-  const response = await fetch(`${proxy ? 'http://caddy' : 'http://web:3000'}${route}`, {
+  const response = await fetch(`${proxy ? 'http://hub.example.test' : 'http://web:3000'}${route}`, {
     ...init, headers, redirect: 'manual', signal: AbortSignal.timeout(30000),
   });
   for (const setCookie of response.headers.getSetCookie()) {
@@ -66,6 +65,9 @@ async function streamDigest(response: Response) {
 }
 
 try {
+  const proxyHealth = await request('/api/health', {}, true, false);
+  assert.equal(proxyHealth.status, 200);
+  assert.equal((await proxyHealth.json() as { status: string }).status, 'ok');
   await status('/api/drive', 401, {}, false, false);
   await createOwnerAccount(database, email, password, 'Synthetic CI owner');
   await json('/api/auth/sign-in/email', { email, password }, 'sign in');

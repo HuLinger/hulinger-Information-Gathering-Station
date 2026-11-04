@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { access, lstat, mkdir, open, readdir, realpath, statfs, unlink, type FileHandle } from 'node:fs/promises';
+import { lstat, mkdir, open, readdir, realpath, statfs, unlink, type FileHandle } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
@@ -28,6 +28,8 @@ export class DriveStore {
   readonly root: string;
   private readonly database: Pool;
   private readonly uploadDatabase: Pool;
+  private storageCheckedAt = 0;
+  private storageProbe: Promise<void> | null = null;
 
   constructor(options: { database: Pool; uploadDatabase?: Pool; root: string; config?: Partial<DriveConfig> }) {
     this.database = options.database;
@@ -101,20 +103,38 @@ export class DriveStore {
   }
 
   private async capacity(client: Pool | PoolClient): Promise<DriveListing['capacity']> {
-    const [disk, totals] = await Promise.all([
-      statfs(await this.storage(), { bigint: true }),
+    const [totals, pending] = await Promise.all([
       client.query<{ used: string; reserved: string; total: string }>(`SELECT
         COALESCE(sum(size) FILTER(WHERE status<>'uploading'),0)::text AS used,
         COALESCE(sum(GREATEST(0,size-COALESCE((SELECT sum(bytes) FROM drive_parts p WHERE p.file_id=f.id),0))) FILTER(WHERE status='uploading'),0)::text AS reserved,
         COALESCE(sum(size),0)::text AS total FROM drive_files f`),
+      client.query<{ id: string; size: string; uploaded: string }>(`SELECT id,size,
+        COALESCE((SELECT sum(bytes) FROM drive_parts p WHERE p.file_id=f.id),0)::text AS uploaded
+        FROM drive_files f WHERE status='uploading'`),
     ]);
+    let diskReservation = 0;
+    for (const file of pending.rows) {
+      const handle = await this.fileHandle(file.id).catch(storageError);
+      try {
+        const details = await handle.stat();
+        const size = Number(file.size);
+        if (details.size !== size) throw new DriveError(503, 'FILE_SIZE_MISMATCH', '上传暂存文件大小异常，请由管理员检查云盘存储。');
+        // NTFS can allocate the entire file at truncate(), while POSIX commonly
+        // leaves holes. Allocated 512-byte blocks already reduced statfs free space.
+        const allocated = Number.isSafeInteger(details.blocks) && details.blocks >= 0 ? Math.min(size, details.blocks * 512) : 0;
+        diskReservation += Math.max(0, size - Math.max(Number(file.uploaded), allocated));
+      } finally { await handle.close(); }
+    }
+    // Sample free space last: writes continuing after the allocation samples can
+    // only make our reservation conservative, never promise the same space twice.
+    const disk = await statfs(await this.storage(), { bigint: true });
     const maximum = BigInt(Number.MAX_SAFE_INTEGER);
     const bytes = disk.bavail * disk.bsize;
     const freeBytes = Number(bytes > maximum ? maximum : bytes);
     const row = totals.rows[0];
     const usedBytes = Number(row.used);
     const reservedBytes = Number(row.reserved);
-    const diskAvailable = Math.max(0, freeBytes - this.config.reserveBytes - reservedBytes);
+    const diskAvailable = Math.max(0, freeBytes - this.config.reserveBytes - diskReservation);
     const availableBytes = Math.max(0, Math.min(diskAvailable, this.config.quotaBytes === null ? Infinity : this.config.quotaBytes - Number(row.total)));
     return { usedBytes, reservedBytes, freeBytes, availableBytes, quotaBytes: this.config.quotaBytes };
   }
@@ -374,5 +394,26 @@ export class DriveStore {
     return { removed: ids.length, orphaned };
   }
 
-  async checkStorage(): Promise<void> { await access(await this.storage(), constants.R_OK | constants.W_OK); }
+  async checkStorage(): Promise<void> {
+    if (Date.now() - this.storageCheckedAt < 60_000) return;
+    if (this.storageProbe) return this.storageProbe;
+    this.storageProbe = (async () => {
+      // fs.access does not evaluate Windows ACLs. Exercise the service account's
+      // real create/read/write/delete permissions without touching stored objects.
+      const path = join(await this.storage(), `.probe-${randomUUID()}`);
+      const handle = await open(path, constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | (constants.O_NOFOLLOW ?? 0), 0o600);
+      try {
+        await handle.write(Buffer.from([0x48]), 0, 1, 0);
+        const data = Buffer.alloc(1);
+        const result = await handle.read(data, 0, 1, 0);
+        if (result.bytesRead !== 1 || data[0] !== 0x48) throw new Error('Drive storage read/write probe failed.');
+      } finally {
+        await handle.close();
+        await unlink(path);
+      }
+      this.storageCheckedAt = Date.now();
+    })();
+    try { await this.storageProbe; }
+    finally { this.storageProbe = null; }
+  }
 }
