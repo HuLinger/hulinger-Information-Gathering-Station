@@ -1,0 +1,14 @@
+{
+  "name": "hulinger-information-hub",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Repository standards tooling; application stack is not selected yet.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup": "node scripts/setup-git.mjs",
+    "check": "node scripts/check-repository.mjs",
+    "check:staged": "node scripts/check-repository.mjs --staged"
+  }
+}
