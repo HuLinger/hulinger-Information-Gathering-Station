@@ -25,6 +25,7 @@ COPY --from=builder --chown=node:node /app/scripts ./scripts
 COPY --from=builder --chown=node:node /app/migrations ./migrations
 COPY --from=builder --chown=node:node /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=node:node /app/package.json ./package.json
+RUN mkdir -p /data/drive/objects && chown -R node:node /data/drive
 USER node
 EXPOSE 3000
 # Validate runtime secrets before serving; the build itself never receives them.

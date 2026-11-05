@@ -2,13 +2,13 @@
 
 给自己使用的私有 AI 信息集合工具：自动收集公开模型公告与 GitHub 开源项目，保留可核验来源，在电脑和手机上阅读、查找、整理和导出。
 
-**当前状态：首版部署候选。** 提供源码、数据库迁移、Docker Compose、拥有者初始化命令和部署手册。公开代码仓库为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)。网站内容由登录与 MFA 保护。尚未部署到用户服务器；域名、异地备份、告警和目标服务器恢复演练须按 [上线门禁](docs/production-readiness.md) 落实。
+**当前版本：0.2.0，加入私有大文件云盘。** 提供源码、数据库迁移、Windows 候选更新工具和 Docker Compose 部署手册。公开代码仓库为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)。网站内容由登录与 MFA 保护。此版本尚未在用户现有 Windows 服务器部署；升级验证、异地备份及告警按 [上线门禁](docs/production-readiness.md) 落实。
 
 ## 最新更新
 
-### 2026-11-04
+### 2026-11-05
 
-首版资讯阅读、模型/项目档案、自动采集、个人整理、JSON 导出与双重认证已完成本地与 CI 验证；Docker 启动、重启及隔离数据库恢复通过。代码仓库按用户要求更名并公开，完善异常响应重试、搜索状态与键盘焦点恢复。详情见 [发布说明](docs/releases/release-notes.md) 和 [变更记录](CHANGELOG.md)。
+新增大文件云盘，支持分片校验、可调并发、暂停续传、文件管理和下载；Windows 候选更新保留服务器本地提交，Linux 更新保留本地配置，备份和恢复同时覆盖数据库与文件。保留首版资讯采集、搜索整理、JSON 导出和双重认证。详情见 [发布说明](docs/releases/release-notes.md) 和 [变更记录](CHANGELOG.md)。
 
 ## 首版能力
 
@@ -18,8 +18,13 @@
 - **纠错与删除**：需核对队列、排除与恢复、合并/撤销、来源拆分、修订记录、回收站与 30 天清理。
 - **数据导出**：后台生成带关联及个人状态的 JSON，登录后下载；导出不是数据库备份。
 - **私有访问**：唯一拥有者、关闭公开注册、密码与验证器双重认证、一次性恢复码、服务端授权。
+- **私有云盘**：大文件分片上传、暂停续传、速度与进度显示、可调并发、文件搜索与重命名、30 天回收站。支持普通下载；提供文件保存接口的浏览器还支持校验后的并行下载与页面内暂停/继续。
 
-首版不提供公共社区、多用户协作、任意 URL 抓取、全文镜像、附件上传或导入。摘要来自公开来源及人工整理，未接入付费 AI 生成。GitHub 排序是本站观测范围内的数据，不是官方全站榜单；没有足够真实快照时不虚构增长。
+当前不提供公共社区、多用户协作、任意 URL 抓取、全文镜像或数据导入。云盘文件独立管理，不执行、解压或在线预览，不提供匿名分享。摘要来自公开来源及人工整理，未接入付费 AI 生成。GitHub 排序是本站观测范围内的数据，不是官方全站榜单；没有足够真实快照时不虚构增长。
+
+云盘默认 16 MiB 分片、4 路并发（最多 8 路），默认单文件上限 1 TiB，空间不足时会拒绝创建上传。传输不设固定速率限制，但实际速度受客户端、服务器出口、磁盘与代理线路影响；Cloudflare Tunnel 同样可能成为瓶颈。并发调高不保证更快。上传未完成内容保留 7 天；刷新后重新选择同一文件并校验已保存分片即可继续。并行下载的暂停状态仅保留于当前页面，关闭页面后请重新选择保存位置；也可使用浏览器原生下载管理器。
+
+[云盘桌面截图](docs/verification/images/drive/files-1440.jpg) · [手机操作区](docs/verification/images/drive/mobile-files-390.jpg) · [云盘交互验收](docs/verification/drive-ui-validation.md) · [0.2.0 检查记录](docs/verification/v0.2-validation.md) · [512 MiB 本机基准与限制](docs/verification/drive-benchmark.md)
 
 ![桌面首页](docs/verification/screenshots/desktop-home.jpg)
 
@@ -42,6 +47,8 @@
 Next.js、TypeScript、Ant Design、PostgreSQL、Better Auth 与 pg-boss 组成单仓库应用。web 与 worker 使用不同数据库角色；管理员角色只供迁移及账号管理。Docker 仅暴露 Caddy 的 80/443，数据库和应用端口留在容器网络。依赖通过 `package-lock.json` 固定，基础镜像按摘要锁定。取舍见 [ADR 0003](docs/adr/0003-self-hosted-architecture.md)。
 
 ## Docker 安装流程
+
+已有的 Windows 原生 Node.js/PostgreSQL 服务部署请使用 [Windows 候选更新流程](docs/windows-update.md)，保留本地提交、服务配置、数据库和文件目录。下面的 Linux/Compose 命令不是现有 Windows 服务的更新步骤。
 
 下列命令面向 **Linux + Bash + Docker Compose v2**。建议首轮验证准备 2 vCPU、4 GiB 内存和至少 20 GiB 可用磁盘；这是测试起点，不是已测容量保证。需要解析到服务器的域名、入站 TCP 80/443（HTTP/3 可另开 UDP 443），以及访问 GitHub、镜像源、证书服务和采集来源的出站 HTTPS。服务器时间须同步。
 
@@ -82,9 +89,15 @@ openssl rand -hex 32
 | `BETTER_AUTH_SECRET` | 会话及 MFA 加密秘密，至少 32 字符；须安全备份，不随意重生成 |
 | `GITHUB_TOKEN` | 可选，增加公开 API 配额；无需仓库写权限 |
 | `HULINGER_IMAGE` | 默认 `hulinger-hub:local`；部署建议使用记录了提交的本地镜像标签 |
+| `DRIVE_MAX_FILE_BYTES` | 单文件上限，默认 1 TiB；仍受实际磁盘空间约束 |
+| `DRIVE_QUOTA_BYTES` | 云盘配额，默认 `0` 不另设配额；可限制为更小的字节数 |
+| `DRIVE_RESERVE_BYTES` | 默认保留 1 GiB 可用磁盘；同时扣除其他进行中上传的预留空间 |
+| `DRIVE_CHUNK_BYTES` / `DRIVE_MAX_PARALLEL` | 默认 16 MiB 分片、最多 8 并发；分片最大 32 MiB，不设置固定传输速率 |
 | `DATABASE_URL` | 仅本地开发需要；Compose 按服务覆盖连接串 |
 
 DNS 须正确指向服务器；如配置 AAAA，IPv6 也须可达。Caddy 在域名与端口条件满足后申请和续期证书；示例域名不能用于生产。
+
+服务器的 CPU/内存限制、代理接入或磁盘绑定放进本地 `compose.override.yml`，与 `.env` 一起保留，不修改上游 `compose.yml`。运维脚本会加载这个覆盖文件；两种扩展名只能保留一种。云盘默认使用新增的 `drive_files` 卷，web/worker 可写、Caddy 只读；原有 `database`、`caddy_data`、`caddy_config` 卷名保持不变。更换已有文件目录时先停写入、备份并迁移，不可直接指向空目录。[存储说明](docs/deployment.md#云盘存储与反向代理)
 
 ### 3. 构建、迁移与创建拥有者
 
@@ -123,9 +136,10 @@ curl --fail --silent --show-error "https://你的域名/api/ready"
 
 ## 升级、备份与账号恢复
 
-- **升级**：保留旧提交/镜像，先备份并在隔离环境验证迁移，再停止业务、执行迁移和启动新镜像；见 [升级流程](docs/deployment.md#升级与回滚)。
-- **备份**：`scripts/backup.sh` 在 Linux 宿主机生成数据库备份并使用 restic 加密到独立存储，附 systemd 定时器示例；见 [备份流程](docs/deployment.md#每日加密备份)。仓库未替你配置远端存储。
-- **恢复**：先恢复到独立 Compose 项目，核对数据和身份密钥再切换；见 [恢复演练](docs/deployment.md#隔离恢复演练)。
+- **Windows 更新**：在隔离候选目录合并上游、保留部署专有提交，验证通过后按现有服务脚本发布；见 [Windows 更新](docs/windows-update.md)。工具不直接重启生产服务。
+- **Linux 更新**：完成首次迁移并配置备份后，`bash scripts/update.sh origin/main` 会备份、构建、迁移、启动并检查健康；保留 `.env`/本地 Compose 覆盖，发现源码修改或本地提交分叉时停止。旧版首次取得脚本见 [升级流程](docs/deployment.md#升级与回滚)。
+- **备份**：`scripts/backup.sh` 暂停 web/worker，将数据库、实际挂载的云盘文件和配置放入同一个 restic 加密快照；首次大文件全量备份需要维护窗口。见 [备份流程](docs/deployment.md#每日加密备份)。
+- **恢复**：同一快照的数据库与文件必须一起恢复到独立项目，核对数量、引用、大小和逐片 SHA-256 后再启动；见 [恢复演练](docs/deployment.md#隔离恢复演练)。
 - **忘记密码或遗失验证器与恢复码**：在受控服务器终端执行下列命令。它重设密码、撤销全部会话和旧恢复码、要求重绑验证器，不删除业务内容。
 
 ```bash

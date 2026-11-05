@@ -24,3 +24,6 @@ tests
 design/*
 !design/tokens.json
 *.tsbuildinfo
+compose.override.yml
+compose.override.yaml
+.deploy

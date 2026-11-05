@@ -1,6 +1,6 @@
 {
   "name": "hulinger-information-hub",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Hulinger private AI information hub with scheduled collection and Docker self-hosting.",
   "type": "module",

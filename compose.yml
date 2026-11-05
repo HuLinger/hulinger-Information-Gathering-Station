@@ -59,6 +59,14 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://hub_worker:${WORKER_DB_PASSWORD:?Generate WORKER_DB_PASSWORD}@db:5432/hulinger
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      DRIVE_STORAGE_PATH: /data/drive
+      DRIVE_MAX_FILE_BYTES: ${DRIVE_MAX_FILE_BYTES:-1099511627776}
+      DRIVE_QUOTA_BYTES: ${DRIVE_QUOTA_BYTES:-0}
+      DRIVE_RESERVE_BYTES: ${DRIVE_RESERVE_BYTES:-1073741824}
+      DRIVE_MAX_PARALLEL: ${DRIVE_MAX_PARALLEL:-8}
+      DRIVE_CHUNK_BYTES: ${DRIVE_CHUNK_BYTES:-16777216}
+    volumes:
+      - drive_files:/data/drive
     depends_on:
       migrate: {condition: service_completed_successfully}
     stop_grace_period: 45s
@@ -77,6 +85,14 @@ services:
       <<: *auth
       DATABASE_URL: postgresql://hub_app:${APP_DB_PASSWORD:?Generate APP_DB_PASSWORD}@db:5432/hulinger
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      DRIVE_STORAGE_PATH: /data/drive
+      DRIVE_MAX_FILE_BYTES: ${DRIVE_MAX_FILE_BYTES:-1099511627776}
+      DRIVE_QUOTA_BYTES: ${DRIVE_QUOTA_BYTES:-0}
+      DRIVE_RESERVE_BYTES: ${DRIVE_RESERVE_BYTES:-1073741824}
+      DRIVE_MAX_PARALLEL: ${DRIVE_MAX_PARALLEL:-8}
+      DRIVE_CHUNK_BYTES: ${DRIVE_CHUNK_BYTES:-16777216}
+    volumes:
+      - drive_files:/data/drive
     depends_on:
       migrate: {condition: service_completed_successfully}
       worker: {condition: service_healthy}
@@ -89,7 +105,7 @@ services:
     logging: *logging
 
   caddy:
-    image: caddy:2-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
+    image: caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
     restart: unless-stopped
     ports: ['80:80', '443:443', '443:443/udp']
     environment:
@@ -98,6 +114,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      - drive_files:/data/drive:ro
     networks: [backend]
     depends_on:
       web: {condition: service_healthy}
@@ -125,3 +142,4 @@ volumes:
   database:
   caddy_data:
   caddy_config:
+  drive_files:

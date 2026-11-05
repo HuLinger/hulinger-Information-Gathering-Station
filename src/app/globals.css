@@ -261,6 +261,66 @@ kbd { border: 1px solid #dce2ed; border-radius: 4px; background: #fff; color: #5
 .enrollment p { line-height: 1.8; color: #4b5b72; margin: 20px 0 10px; }
 .secret-value { display: block; padding: 12px; overflow-wrap: anywhere; background: #f5f8fc; font-size: 13px; margin: 10px 0; }
 .backup-codes { font-size: 13px; padding: 16px; background: #f4f7fb; border: 1px solid #e0e6ef; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.9; }
+.drive-workspace { min-width: 0; }
+.drive-capacity { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+.drive-capacity > div { border: 1px solid var(--hub-border); border-radius: 8px; padding: 16px 24px; background: var(--hub-surface); }
+.drive-capacity span { color: var(--hub-secondary); display: block; margin-bottom: 8px; }
+.drive-capacity strong { display: block; font-size: 20px; line-height: 1.4; overflow-wrap: anywhere; }
+.drive-controls, .drive-transfers { margin-bottom: 24px; }
+.drive-upload-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+.drive-upload-heading h2 { margin-bottom: 8px; }
+.drive-upload-heading p { margin-bottom: 16px; line-height: 1.7; }
+.drive-upload-heading > .ant-btn { flex-shrink: 0; }
+.drive-preferences { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.drive-preferences > label { font-weight: 500; }
+.drive-preferences > .ant-select { min-width: 90px; }
+.drive-preferences > span { font-size: 12px; line-height: 1.8; }
+.drive-help { font-size: 12px; line-height: 1.8; margin: 16px 0 0; }
+.drive-task-list, .drive-file-list { list-style: none; padding: 0; margin: 0; }
+.drive-transfers > .section-heading { flex-wrap: wrap; }
+.drive-transfers > .section-heading > span { font-size: 12px; }
+.drive-task { padding: 20px 0; border-top: 1px solid var(--hub-border); }
+.drive-task:last-child { padding-bottom: 0; }
+.drive-task-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.drive-task-heading strong { min-width: 0; overflow-wrap: anywhere; }
+.drive-task-heading .ant-tag { flex-shrink: 0; margin-inline-end: 0; }
+.drive-transfer-metrics { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 12px; line-height: 1.8; color: var(--hub-secondary); }
+.drive-transfer-meter { margin-bottom: 12px; }
+.drive-task-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.drive-file-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.drive-file-toolbar > .ant-tabs { flex: 1; min-width: 180px; }
+.drive-file-search { display: flex; gap: 8px; width: min(100%, 400px); }
+.drive-file-list { background: var(--hub-surface); border: 1px solid var(--hub-border); border-radius: 8px; padding-inline: 24px; }
+.drive-file-row { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 24px 0; border-top: 1px solid var(--hub-border); }
+.drive-file-row:first-child { border-top: 0; }
+.drive-file-icon { color: var(--hub-primary); font-size: 24px; }
+.drive-file-info { flex: 1; min-width: min(220px, 100%); }
+.drive-file-info h3 { font-size: 16px; line-height: 1.6; overflow-wrap: anywhere; margin-bottom: 4px; }
+.drive-file-info p { font-size: 12px; line-height: 1.8; margin-bottom: 0; }
+.drive-file-actions { margin-left: auto; }
+.drive-download-link { display: inline-flex; gap: 8px; align-items: center; justify-content: center; min-height: 40px; padding: 4px 8px; }
+.drive-file-actions .drive-download-link { color: var(--hub-primary); }
+.drive-file-actions .drive-download-link:hover { color: var(--hub-primary-hover); }
+.mobile-utility { flex-wrap: wrap; }
+@media (max-width: 767px) {
+  .drive-capacity { gap: 8px; margin-bottom: 16px; }
+  .drive-capacity > div { padding: 12px 8px; }
+  .drive-capacity span { font-size: 12px; }
+  .drive-capacity strong { font-size: 16px; }
+  .drive-upload-heading { flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .drive-upload-heading > .ant-btn { width: 100%; }
+  .drive-preferences > span { width: 100%; }
+  .drive-task-heading { flex-wrap: wrap; gap: 8px; }
+  .drive-task-actions .ant-btn { min-height: 44px; }
+  .drive-file-search { width: 100%; }
+  .drive-file-search .ant-input-affix-wrapper > .ant-input { min-height: 0; }
+  .drive-file-search > .ant-btn { flex: 0 0 44px; min-width: 44px; }
+  .drive-file-list { padding-inline: 16px; }
+  .drive-file-row { gap: 12px; }
+  .drive-file-info { min-width: 0; flex-basis: calc(100% - 36px); }
+  .drive-file-actions { width: 100%; margin-left: 0; }
+  .drive-download-link { min-height: 44px; }
+}
 .verification-form { margin-top: 24px; }
 .login-signout { display: block; margin: 16px auto 0; }
 @media (min-width: 1700px) { .app-main { padding-inline: 40px; } .workspace-columns { grid-template-columns: minmax(0, 1fr) 376px; gap: 28px; } }
@@ -307,6 +367,7 @@ kbd { border: 1px solid #dce2ed; border-radius: 4px; background: #fff; color: #5
   .header-search { width: 330px; max-width: 55%; }
 }
 @media (max-width: 767px) {
+  html:has(.mobile-bottom-nav) { scroll-padding-top: calc(64px + 16px); scroll-padding-bottom: calc(64px + 16px + env(safe-area-inset-bottom)); }
   .app-sidebar, .breadcrumb, .header-search { display: none; }
   .app-header { margin-left: 0; height: 64px; padding: 0 12px; gap: 12px; }
   .mobile-header-brand { display: flex; align-items: center; gap: 8px; }

@@ -10,6 +10,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <ConfigProvider locale={zhCN} theme={{
       token: {
         colorPrimary: colors.primary,
+        colorPrimaryHover: colors.primaryHover,
+        colorPrimaryActive: colors.primaryActive,
         colorSuccess: colors.success,
         colorWarning: colors.warning,
         colorError: colors.danger,
@@ -28,6 +30,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         Button: { primaryShadow: 'none', defaultShadow: 'none' },
         Input: { activeShadow: '0 0 0 2px rgba(9, 88, 217, 0.12)' },
         Tabs: { horizontalItemGutter: 32 },
+        Tag: { colorSuccessBg: colors.surface, colorErrorBg: colors.surface, colorWarningBg: colors.surface },
       },
     }}>
       <App>{children}</App>

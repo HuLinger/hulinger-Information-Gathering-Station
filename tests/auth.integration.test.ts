@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
-import { createHmac, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Pool } from 'pg';
+import { verifyDriveHttpDownloads } from './helpers/drive-http-checks';
 
 const databaseURL = process.env.AUTH_TEST_DATABASE_URL ?? process.env.TEST_DATABASE_URL;
 
@@ -27,6 +31,7 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
   url.pathname = `/${name}`;
   await admin.query(`CREATE DATABASE "${name}"`);
   const database = new Pool({ connectionString: url.href, max: 4 });
+  const driveRoot = await mkdtemp(join(tmpdir(), 'hulinger-auth-drive-'));
   const appPassword = randomBytes(32).toString('hex');
   const workerPassword = randomBytes(32).toString('hex');
   const appName = `${name}_app`;
@@ -37,9 +42,12 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
   process.env.DATABASE_URL = appURL.href;
   process.env.APP_URL = 'http://127.0.0.1:3000';
   process.env.BETTER_AUTH_SECRET = randomBytes(32).toString('hex');
+  process.env.DRIVE_STORAGE_PATH = driveRoot;
+  process.env.DRIVE_RESERVE_BYTES = '0';
   Object.assign(process.env, { NODE_ENV: 'test' });
   let applicationPool: Pool | undefined;
   let worker: Pool | undefined;
+  let closeDrive: (() => Promise<void>) | undefined;
   try {
     const { migrate } = await import('../scripts/migrate');
     const { createOwnerAccount, recoverOwnerAccount } = await import('../scripts/owner');
@@ -50,6 +58,13 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     await migrate(database, { roles: { appPassword, workerPassword, appName, workerName } });
     const { POST } = await import('../src/app/api/auth/[...all]/route');
     const { GET } = await import('../src/app/api/auth/status/route');
+    const driveList = await import('../src/app/api/drive/route');
+    const driveCreate = await import('../src/app/api/drive/uploads/route');
+    const drivePart = await import('../src/app/api/drive/uploads/[id]/parts/[index]/route');
+    const driveComplete = await import('../src/app/api/drive/uploads/[id]/complete/route');
+    const { downloadResponse } = await import('../src/server/drive/content');
+    const driveAuth = await import('../src/app/api/drive/authorize-download/route');
+    closeDrive = (await import('../src/server/drive/runtime')).closeDrive;
     const jars = new Map<string, Map<string, string>>();
     const cookieHeaders = (jar: string) => new Headers({ cookie: [...(jars.get(jar) ?? [])].map(([key, value]) => `${key}=${value}`).join('; ') });
     let ipCounter = 1;
@@ -94,11 +109,53 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     assert.equal(verify.data.token, undefined);
     assert.equal((await status('a')).state, 'ready');
     assert.deepEqual(await requireOwner(cookieHeaders('a')), { id });
+    // Exercise the actual cloud-drive route wrappers with real cookies and limited runtime roles.
+    const driveRequest = (path: string, method = 'GET', body?: BodyInit, jar = 'a', origin = process.env.APP_URL!) => {
+      const headers = cookieHeaders(jar);
+      headers.set('origin', origin);
+      if (method !== 'GET') headers.set('content-type', 'application/json');
+      return new Request(`${process.env.APP_URL}${path}`, { method, headers, body });
+    };
+    assert.equal((await driveList.GET(driveRequest('/api/drive', 'GET', undefined, 'anonymous'))).status, 401);
+    const bytes = Buffer.from('Synthetic private file / 合成文件');
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    const input = JSON.stringify({ name: '合成文件.bin', size: bytes.length, lastModified: 0, fingerprint: digest });
+    assert.equal((await driveCreate.POST(driveRequest('/api/drive/uploads', 'POST', input, 'a', 'https://attacker.example'))).status, 403);
+    const created = await driveCreate.POST(driveRequest('/api/drive/uploads', 'POST', input));
+    assert.equal(created.status, 200);
+    const upload = await created.json() as { file: { id: string } };
+    const fileId = upload.file.id;
+    const context = { params: Promise.resolve({ id: fileId }) };
+    const put = driveRequest(`/api/drive/uploads/${fileId}/parts/0`, 'PUT', bytes);
+    put.headers.set('content-type', 'application/octet-stream');
+    put.headers.set('x-chunk-sha256', digest);
+    assert.equal((await drivePart.PUT(put, { params: Promise.resolve({ id: fileId, index: '0' }) })).status, 200);
+    assert.equal((await driveComplete.POST(driveRequest(`/api/drive/uploads/${fileId}/complete`, 'POST', '{}'), context)).status, 200);
+    const rangeRequest = driveRequest(`/api/drive/files/${fileId}/content`);
+    rangeRequest.headers.set('range', 'bytes=2-8');
+    const ranged = await downloadResponse(rangeRequest, fileId);
+    assert.equal(ranged.status, 206);
+    assert.deepEqual(Buffer.from(await ranged.arrayBuffer()), bytes.subarray(2, 9));
+    assert.match(ranged.headers.get('content-disposition')!, /^attachment;/);
+    const { default: downloadHandler } = await import('../src/pages/api/drive/files/[id]/content');
+    const { getDrive } = await import('../src/server/drive/runtime');
+    await verifyDriveHttpDownloads(downloadHandler, getDrive(), fileId, bytes, cookieHeaders('a'));
+    const forwarded = driveRequest('/api/drive/authorize-download');
+    forwarded.headers.set('x-forwarded-uri', `/api/drive/files/${fileId}/content`);
+    forwarded.headers.set('x-forwarded-method', 'GET');
+    forwarded.headers.set('x-drive-storage-key', '../../synthetic-injection');
+    const authorized = await driveAuth.GET(forwarded);
+    assert.equal(authorized.status, 200);
+    assert.equal(authorized.headers.get('x-drive-storage-key'), `${fileId}.bin`);
+    forwarded.headers.set('x-forwarded-uri', '/api/drive/files/../../config/content');
+    assert.equal((await driveAuth.GET(forwarded)).status, 403);
+    assert.equal((await database.query('SELECT count(*)::int AS count FROM drive_files')).rows[0].count, 1);
     await assert.rejects(requireOwner(cookieHeaders('b')), { code: 'MFA_REQUIRED' });
     assert.equal((await post('b', '/two-factor/verify-totp', { code: totp(uri) })).status, 401);
     assert.equal((await post('a', '/two-factor/disable', { password })).status, 404);
     await post('a', '/sign-out', {});
     await assert.rejects(requireOwner(cookieHeaders('a')), { status: 401 });
+    assert.equal((await downloadResponse(driveRequest(`/api/drive/files/${fileId}/content`), fileId)).status, 401);
     const challenge = await post('a', '/sign-in/email', { email: 'owner@example.test', password });
     assert.equal(challenge.status, 200);
     assert.equal(challenge.data.twoFactorRedirect, true);
@@ -137,8 +194,11 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     assert.equal((await database.query('SELECT count(*)::int AS count FROM auth_admin_audit')).rows[0].count, 2);
   } finally {
     await worker?.end();
+    await closeDrive?.();
     await applicationPool?.end();
     await database.end();
+    assert.equal(dirname(resolve(driveRoot)).toLowerCase(), resolve(tmpdir()).toLowerCase());
+    await rm(driveRoot, { recursive: true, force: true });
     try {
       // pg-pool can resolve end() before all socket close callbacks reach PostgreSQL.
       // Wait for actual disconnects instead of FORCE-killing retiring clients and emitting pool errors.
