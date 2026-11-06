@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Alert, Button, Checkbox, Form, Input, QRCode, Skeleton } from 'antd';
-import { ArrowRightOutlined, LockOutlined, MailOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { ArrowRightOutlined, LockOutlined, SafetyCertificateOutlined, UserOutlined } from '@ant-design/icons';
 import { errorMessage, postJson, requestJson, type AuthStatus } from './api';
 
 export default function Login() {
@@ -33,10 +33,15 @@ export default function Login() {
     return () => controller.abort();
   }, [router]);
 
-  async function login(values: { email: string; password: string }) {
+  async function login(values: { identifier: string; password: string }) {
     setPending(true); setError('');
     try {
-      const result = await postJson<{ twoFactorRedirect?: boolean }>('/api/auth/sign-in/email', { ...values, rememberMe: false });
+      const identifier = values.identifier.trim();
+      const result = await postJson<{ twoFactorRedirect?: boolean }>(identifier.includes('@') ? '/api/auth/sign-in/email' : '/api/auth/sign-in/username', {
+        ...(identifier.includes('@') ? { email: identifier } : { username: identifier }),
+        password: values.password,
+        rememberMe: false,
+      });
       if (result.twoFactorRedirect) setChallenge(true);
       else await refresh();
     } catch (cause) { setError(errorMessage(cause)); }
@@ -64,20 +69,20 @@ export default function Login() {
   }
 
   const secret = enrollment ? new URL(enrollment.totpURI).searchParams.get('secret') : '';
-  const title = enrollment ? '连接你的验证器' : status?.state === 'setup-mfa' ? '为私人资料加一道保护' : challenge ? '确认是你本人' : '回到你的 AI 工作空间';
+  const title = enrollment ? '连接你的验证器' : status?.state === 'setup-mfa' ? '为私人资料加一道保护' : challenge ? '确认是你本人' : '回到你的工作空间';
 
   return <main className="login-page">
-    <a href="/login" className="brand login-brand" aria-label="Hulinger 登录页"><strong>HULINGER</strong><span>AI 情报与资料</span></a>
+    <a href="/login" className="brand login-brand" aria-label="Hulinger AI 情报与资料登录页"><strong>HULINGER</strong><span>AI 情报与资料</span></a>
     <section className={`login-card${enrollment ? ' enrollment-card' : ''}`} aria-labelledby="login-title">
       <div className="login-symbol"><SafetyCertificateOutlined /></div>
       <div className="eyebrow">YOUR PRIVATE WORKSPACE</div>
       <h1 id="login-title">{title}</h1>
-      <p className="login-intro">{challenge ? '请输入验证器中的动态验证码。' : status?.state === 'setup-mfa' ? '首次使用需要设置双重验证，只有你能访问这里。' : '关注模型的变化，收集值得留下的发现。'}</p>
+      <p className="login-intro">{challenge ? '请输入验证器中的动态验证码。' : status?.state === 'setup-mfa' ? '主账号首次使用需要设置双重验证，保护账号管理操作。' : '关注模型的变化，收集值得留下的发现。'}</p>
       {error && <Alert type="error" showIcon title={error} className="section-alert" action={!status ? <Button onClick={() => void refresh()}>重试</Button> : undefined} />}
       {!status && !error && <Skeleton active paragraph={{ rows: 4 }} />}
       {status?.state === 'unconfigured' && <Alert type="info" showIcon title="工作空间尚未初始化" description="请由站点部署者完成拥有者配置，然后刷新此页面。此站点不开放公众注册。" action={<Button onClick={() => void refresh()}>刷新状态</Button>} />}
       {status?.state === 'signed-out' && !challenge && <Form layout="vertical" onFinish={login} requiredMark={false}>
-        <Form.Item name="email" label="邮箱" rules={[{ required: true, message: '请输入拥有者邮箱' }, { type: 'email', message: '请输入有效的邮箱地址' }]}><Input prefix={<MailOutlined />} autoComplete="username" inputMode="email" placeholder="你的邮箱地址" /></Form.Item>
+        <Form.Item name="identifier" label="用户名或邮箱" extra="主账号可使用 admin 或已配置邮箱；成员使用分配的用户名。" rules={[{ required: true, whitespace: true, message: '请输入用户名或邮箱' }, { max: 254, message: '用户名或邮箱过长' }]}><Input prefix={<UserOutlined />} autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="admin 或成员用户名" /></Form.Item>
         <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}><Input.Password prefix={<LockOutlined />} autoComplete="current-password" placeholder="输入密码" /></Form.Item>
         <Button type="primary" htmlType="submit" block loading={pending} icon={<ArrowRightOutlined />} iconPlacement="end">进入工作空间</Button>
       </Form>}
@@ -103,7 +108,7 @@ export default function Login() {
       {status?.state === 'setup-mfa' && <Button type="link" className="login-signout" onClick={async () => {
         try { await postJson('/api/auth/sign-out', {}); setEnrollment(null); setSavedCodes(false); await refresh(); } catch (cause) { setError(errorMessage(cause)); }
       }}>返回登录</Button>}
-      <div className="login-private"><LockOutlined /> 单人私有 · 安全连接 · 你的资料由你掌握</div>
+      <div className="login-private"><LockOutlined /> 私有站点 · 账号独立 · 你的资料由你掌握</div>
     </section>
     <footer className="login-footer">信息有出处，关注有方向。</footer>
   </main>;

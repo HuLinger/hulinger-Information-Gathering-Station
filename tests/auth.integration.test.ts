@@ -7,6 +7,7 @@ import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Pool } from 'pg';
 import { verifyDriveHttpDownloads } from './helpers/drive-http-checks';
+import { verifyMemberAccounts } from './helpers/member-account-checks';
 
 const databaseURL = process.env.AUTH_TEST_DATABASE_URL ?? process.env.TEST_DATABASE_URL;
 
@@ -48,6 +49,7 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
   let applicationPool: Pool | undefined;
   let worker: Pool | undefined;
   let closeDrive: (() => Promise<void>) | undefined;
+  let closeAccounts: (() => Promise<void>) | undefined;
   try {
     const { migrate } = await import('../scripts/migrate');
     const { createOwnerAccount, recoverOwnerAccount } = await import('../scripts/owner');
@@ -65,6 +67,7 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     const { downloadResponse } = await import('../src/server/drive/content');
     const driveAuth = await import('../src/app/api/drive/authorize-download/route');
     closeDrive = (await import('../src/server/drive/runtime')).closeDrive;
+    closeAccounts = (await import('../src/server/accounts')).closeAccountConnections;
     const jars = new Map<string, Map<string, string>>();
     const cookieHeaders = (jar: string) => new Headers({ cookie: [...(jars.get(jar) ?? [])].map(([key, value]) => `${key}=${value}`).join('; ') });
     let ipCounter = 1;
@@ -92,10 +95,12 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     assert.equal((await post('a', '/sign-up/email', { email: 'other@example.test', password })).status, 404);
     assert.equal((await post('a', '/sign-in/email', { email: 'owner@example.test', password }, 'https://attacker.example')).status, 403);
     await assert.rejects(requireOwner(cookieHeaders('a')), { status: 401 });
-    const firstLogin = await post('a', '/sign-in/email', { email: 'owner@example.test', password });
+    // A fresh owner created by the unchanged CLI has no username column populated yet.
+    const firstLogin = await post('a', '/sign-in/username', { username: 'admin', password });
     assert.equal(firstLogin.status, 200, JSON.stringify(firstLogin.data));
     assert.equal(firstLogin.data.token, undefined);
     assert.equal((await status('a')).state, 'setup-mfa');
+    assert.equal((await status('a')).user.role, 'owner');
     await assert.rejects(requireOwner(cookieHeaders('a')), { code: 'MFA_REQUIRED' });
     assert.equal((await post('b', '/sign-in/email', { email: 'owner@example.test', password })).status, 200);
     const setup = await post('a', '/two-factor/enable', { password });
@@ -109,6 +114,7 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     assert.equal(verify.data.token, undefined);
     assert.equal((await status('a')).state, 'ready');
     assert.deepEqual(await requireOwner(cookieHeaders('a')), { id });
+    await verifyMemberAccounts(database, id, cookieHeaders, post);
     // Exercise the actual cloud-drive route wrappers with real cookies and limited runtime roles.
     const driveRequest = (path: string, method = 'GET', body?: BodyInit, jar = 'a', origin = process.env.APP_URL!) => {
       const headers = cookieHeaders(jar);
@@ -149,7 +155,7 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     assert.equal(authorized.headers.get('x-drive-storage-key'), `${fileId}.bin`);
     forwarded.headers.set('x-forwarded-uri', '/api/drive/files/../../config/content');
     assert.equal((await driveAuth.GET(forwarded)).status, 403);
-    assert.equal((await database.query('SELECT count(*)::int AS count FROM drive_files')).rows[0].count, 1);
+    assert.equal((await database.query('SELECT count(*)::int AS count FROM drive_files WHERE owner_id=$1', [id])).rows[0].count, 1);
     await assert.rejects(requireOwner(cookieHeaders('b')), { code: 'MFA_REQUIRED' });
     assert.equal((await post('b', '/two-factor/verify-totp', { code: totp(uri) })).status, 401);
     assert.equal((await post('a', '/two-factor/disable', { password })).status, 404);
@@ -179,8 +185,18 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
     workerURL.username = workerName;
     workerURL.password = workerPassword;
     worker = new Pool({ connectionString: workerURL.href, max: 1 });
-    assert.equal((await worker.query("SELECT value FROM app_settings WHERE key = 'owner'")).rowCount, 0);
+    assert.equal((await worker.query("SELECT value->>'id' AS id FROM app_settings WHERE key = 'owner'")).rows[0].id, id);
+    assert.equal((await worker.query("UPDATE app_settings SET value = '{}' WHERE key = 'owner'")).rowCount, 0);
     await assert.rejects(worker.query('SELECT * FROM "user"'), { code: '42501' });
+    await assert.rejects(worker.query('SELECT * FROM account'), { code: '42501' });
+    await assert.rejects(worker.query('SELECT username FROM login_events'), { code: '42501' });
+    await database.query("UPDATE login_events SET occurred_at=now()-interval '31 days' WHERE id=(SELECT id FROM login_events ORDER BY occurred_at LIMIT 1)");
+    await database.query("UPDATE account_management_events SET occurred_at=now()-interval '31 days' WHERE id=(SELECT id FROM account_management_events ORDER BY occurred_at LIMIT 1)");
+    const auditCounts = (await database.query('SELECT (SELECT count(*)::int FROM login_events) AS login, (SELECT count(*)::int FROM account_management_events) AS management')).rows[0];
+    await (await import('../src/server/accounts')).cleanupLoginEvents(worker);
+    const retained = (await database.query('SELECT (SELECT count(*)::int FROM login_events) AS login, (SELECT count(*)::int FROM account_management_events) AS management')).rows[0];
+    assert.equal(retained.login, auditCounts.login - 1);
+    assert.equal(retained.management, auditCounts.management - 1);
     await assert.rejects(pool.query("UPDATE app_settings SET value = '{}' WHERE key = 'owner'").then((result) => {
       if (!result.rowCount) throw new Error('blocked');
     }));
@@ -195,6 +211,7 @@ test('real PostgreSQL: owner, MFA enrollment, stale sessions, recovery and role 
   } finally {
     await worker?.end();
     await closeDrive?.();
+    await closeAccounts?.();
     await applicationPool?.end();
     await database.end();
     assert.equal(dirname(resolve(driveRoot)).toLowerCase(), resolve(tmpdir()).toLowerCase());

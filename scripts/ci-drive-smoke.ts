@@ -77,6 +77,22 @@ try {
   await json('/api/auth/two-factor/verify-totp', { code: totp(setup.totpURI as string), trustDevice: false }, 'MFA verify');
   await status('/api/drive', 200);
 
+  const gameBase='/api/tools/shattered-pixel-dungeon';
+  await status(`${gameBase}/assets/index.html`,401,{},true,false);
+  const gameIndex=await request(`${gameBase}/assets/index.html`,{},true);
+  assert.equal(gameIndex.status,200);
+  assert.equal(gameIndex.headers.get('x-frame-options'),'SAMEORIGIN');
+  assert.match(gameIndex.headers.get('content-security-policy')??'',/wasm-unsafe-eval/);
+  assert.match(await gameIndex.text(),/bootstrap\.mjs/);
+  const initialSave=await (await request(`${gameBase}/save`,{},true)).json() as {scope:string;revision:number};
+  const snapshot={formatVersion:1,files:[{path:'/shattered-pixel-dungeon/game1/game.dat/',type:2,data:Buffer.alloc(2*1024*1024,1).toString('base64'),modifiedAt:new Date().toISOString()}],prefs:{}};
+  const gameSaved=await request(`${gameBase}/save`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...initialSave,snapshot})},true);
+  assert.equal(gameSaved.status,200);
+  assert.equal((await gameSaved.json() as {revision:number}).revision,1);
+  const restoredGame=await (await request(`${gameBase}/save`,{},true)).json() as {snapshot:typeof snapshot};
+  assert.deepEqual(restoredGame.snapshot,snapshot);
+  await database.query('DELETE FROM game_saves WHERE owner_id=$1',[initialSave.scope]);
+
   const first = Buffer.alloc(16 * 1024 * 1024, 0x73);
   const tail = Buffer.from('Synthetic final chunk / 合成尾片\n'.repeat(257));
   const expectedHash = createHash('sha256').update(first).update(tail).digest('hex');

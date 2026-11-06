@@ -47,6 +47,11 @@ jobs:
           node-version-file: .node-version
       - name: Install locked dependencies
         run: npm ci
+      - name: Set up Java for the vendored game
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Prepare pinned Caddy integration binary
         run: |
           mkdir -p .tmp
@@ -98,6 +103,7 @@ jobs:
           dc=(docker compose --env-file .tmp/ci.env -p hulinger_ci)
           "${dc[@]}" stop worker
           "${dc[@]}" exec -T db psql -U postgres -d hulinger -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT set_config('hub.account_id',(SELECT value->>'id' FROM app_settings WHERE key='owner'),false);
           INSERT INTO entities(id,kind,name,url,followed) VALUES('ci-restore-entity','model','CI restore model','https://example.test/model',true);
           INSERT INTO sources(id,name,kind,url,enabled) VALUES('ci-restore-source','CI restore source','rss','https://example.test/feed',false);
           INSERT INTO events(id,title,kind,url,entity_id,source_name,personal,overrides,tags)
@@ -121,6 +127,7 @@ jobs:
             IF NOT EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='pgboss' AND tablename='job' AND tableowner='hub_worker')
               THEN RAISE EXCEPTION 'queue ownership differs'; END IF;
           END $$;
+          SELECT set_config('hub.account_id',(SELECT value->>'id' FROM app_settings WHERE key='owner'),false);
           SET ROLE hub_app;
           SELECT id FROM events WHERE id='ci-restore-event';
           SELECT name FROM pgboss.queue LIMIT 1;
@@ -178,6 +185,11 @@ jobs:
         run: ./tests/update-windows.test.ps1
       - name: Install application dependencies on Windows Node 24
         run: npm ci
+      - name: Set up Java for the vendored game
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Check application on Windows Node 24
         run: npm run check
       - name: Build application on Windows Node 24

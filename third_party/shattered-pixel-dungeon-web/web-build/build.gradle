@@ -1,0 +1,15 @@
+// Hulinger Web-only build, 2026-11-06. Original multi-platform build.gradle is retained.
+ext.gameSourceRoot = file('..')
+allprojects {
+    ext {
+        appName = 'Shattered Pixel Dungeon · Hulinger Web'
+        appPackageName = 'com.hulinger.shatteredpixeldungeon.web'
+        appVersionCode = 896
+        appVersionName = '3.3.8-hulinger-web.1'
+        appJavaCompatibility = JavaVersion.VERSION_11
+        gdxVersion = '1.14.0'
+        gdxControllersVersion = '2.2.4'
+    }
+    version = appVersionName
+    repositories { mavenCentral() }
+}

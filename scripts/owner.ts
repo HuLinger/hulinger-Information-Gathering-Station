@@ -23,8 +23,8 @@ export async function createOwnerAccount(database: Pool, email: string, password
     await client.query('SELECT pg_advisory_xact_lock(746104204)');
     if ((await client.query('SELECT 1 FROM "user" LIMIT 1')).rowCount) throw new Error('已存在拥有者；不会覆盖账号。');
     const id = randomUUID();
-    await client.query(`INSERT INTO "user" (id, name, email, "emailVerified", "twoFactorEnabled", "createdAt", "updatedAt")
-      VALUES ($1, $2, $3, true, false, now(), now())`, [id, name.trim(), email.trim().toLowerCase()]);
+    await client.query(`INSERT INTO "user" (id, name, email, username, "emailVerified", "twoFactorEnabled", "createdAt", "updatedAt")
+      VALUES ($1, $2, $3, 'admin', true, false, now(), now())`, [id, name.trim(), email.trim().toLowerCase()]);
     await client.query(`INSERT INTO account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
       VALUES ($1, $2, 'credential', $2, $3, now(), now())`, [randomUUID(), id, hashed]);
     await client.query("INSERT INTO app_settings(key, value) VALUES ('owner', $1::jsonb)", [JSON.stringify({ id })]);

@@ -1,19 +1,21 @@
 import { failure, privateHeaders as headers } from '../../../server/http';
-import { requireOwner, assertSameOrigin } from '../../../server/authorize';
+import { requireUser, assertSameOrigin } from '../../../server/authorize';
 import { actionSchema, DomainError, executeDomain, getDetail, listHub } from '../../../server/domain';
-import { query } from '../../../server/db';
+import { accountQuery as query, withAccountScope } from '../../../server/db';
 import { createExport, listExports } from '../../../server/exports';
 import { ensureSources, enqueueSource, validateSource } from '../../../server/collector/index';
 
 export const dynamic='force-dynamic';
 export async function GET(request:Request) {
   try {
-    await requireOwner(request.headers);
+    const user=await requireUser(request.headers);
+    return await withAccountScope(user.id,async()=>{
     const params=new URL(request.url).searchParams;
     if(params.get('exports')==='1')return Response.json({exports:await listExports()},{headers});
     if(params.get('id'))return Response.json(await getDetail(params.get('id')!),{headers});
     await ensureSources();
     return Response.json(await listHub(params),{headers});
+    });
   } catch(error){return failure(error);}
 }
 async function boundedJson(request:Request) {
@@ -25,7 +27,8 @@ async function boundedJson(request:Request) {
 }
 export async function POST(request:Request) {
   try {
-    await requireOwner(request.headers);assertSameOrigin(request);
+    const user=await requireUser(request.headers);assertSameOrigin(request);
+    return await withAccountScope(user.id,async()=>{
     const action=actionSchema.parse(await boundedJson(request));
     if(action.action==='sync'){await enqueueSource(action.id);return Response.json({ok:true},{headers});}
     if(action.action==='source') {
@@ -39,5 +42,6 @@ export async function POST(request:Request) {
     }
     if(action.action==='export')return Response.json({ok:true,id:await createExport()},{headers});
     return Response.json({ok:true,...await executeDomain(action)},{headers});
+    });
   } catch(error){return failure(error);}
 }

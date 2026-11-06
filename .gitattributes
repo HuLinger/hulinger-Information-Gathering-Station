@@ -7,3 +7,5 @@
 *.ico binary
 *.pdf binary
 *.woff2 binary
+# Retain the exact GPL upstream blobs; their manifest validates original bytes.
+third_party/shattered-pixel-dungeon-web/** -text

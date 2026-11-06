@@ -1,0 +1,1 @@
+export const GAME_FRAME_CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob:; media-src 'self' blob:; font-src 'self'; object-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'";

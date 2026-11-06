@@ -17,6 +17,10 @@
     method PUT
     path_regexp upload ^/api/drive/uploads/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/parts/[0-9]+$
   }
+  @game_save {
+    method PUT
+    path /api/tools/shattered-pixel-dungeon/save
+  }
   route {
     handle @download {
       route {
@@ -45,6 +49,14 @@
     handle @upload {
       request_body {
         max_size 33MiB
+      }
+      reverse_proxy web:3000 {
+        header_up X-Forwarded-For {remote_host}
+      }
+    }
+    handle @game_save {
+      request_body {
+        max_size 32MiB
       }
       reverse_proxy web:3000 {
         header_up X-Forwarded-For {remote_host}

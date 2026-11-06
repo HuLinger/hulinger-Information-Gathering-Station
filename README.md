@@ -2,13 +2,13 @@
 
 给自己使用的私有 AI 信息集合工具：自动收集公开模型公告与 GitHub 开源项目，保留可核验来源，在电脑和手机上阅读、查找、整理和导出。
 
-**当前版本：0.2.0，加入私有大文件云盘。** 提供源码、数据库迁移、Windows 候选更新工具和 Docker Compose 部署手册。公开代码仓库为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)。网站内容由登录与 MFA 保护。此版本尚未在用户现有 Windows 服务器部署；升级验证、异地备份及告警按 [上线门禁](docs/production-readiness.md) 落实。
+**当前版本：0.3.0，加入小工具、地牢游戏与受主管理的独立账号。** 提供源码、数据库迁移、Windows 候选更新工具和 Docker Compose 部署手册。公开代码仓库为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)。所有业务登录后使用，admin 保留 MFA，成员使用用户名和密码登录。此版本尚未在用户现有 Windows 服务器部署；升级验证、异地备份及告警按 [上线门禁](docs/production-readiness.md) 落实。
 
 ## 最新更新
 
-### 2026-11-05
+### 2026-11-06
 
-新增大文件云盘，支持分片校验、可调并发、暂停续传、文件管理和下载；Windows 候选更新保留服务器本地提交，Linux 更新保留本地配置，备份和恢复同时覆盖数据库与文件。保留首版资讯采集、搜索整理、JSON 导出和双重认证。详情见 [发布说明](docs/releases/release-notes.md) 和 [变更记录](CHANGELOG.md)。
+新增“小工具”卡片和破碎的像素地牢 Web 游戏，提供账号独立的云端存档与二次开发源码；admin 可管理成员和查看登录记录。每个账号独立使用资讯、来源、整理、云盘和导出，新成员不继承主账号内容。详情见 [发布说明](docs/releases/release-notes.md)、[变更记录](CHANGELOG.md) 和 [游戏二次开发](docs/development/shattered-pixel-dungeon.md)。
 
 ## 首版能力
 
@@ -17,10 +17,12 @@
 - **个人整理**：人工补充，修正标题、摘要、分类、标签及关联，私人备注、收藏、稍后读、已读、归档；重采保留人工覆盖。
 - **纠错与删除**：需核对队列、排除与恢复、合并/撤销、来源拆分、修订记录、回收站与 30 天清理。
 - **数据导出**：后台生成带关联及个人状态的 JSON，登录后下载；导出不是数据库备份。
-- **私有访问**：唯一拥有者、关闭公开注册、密码与验证器双重认证、一次性恢复码、服务端授权。
+- **私有访问**：关闭公开注册；主账号密码与验证器双重认证、一次性恢复码；主账号创建成员，成员密码登录，所有业务按账号服务端授权。
+- **账号管理**：admin 创建、修改显示名、停用/启用成员、重置成员密码、撤销会话和查看脱敏登录记录。
+- **小工具与游戏**：卡片进入破碎的像素地牢，支持电脑和手机；进度保存在当前账号，跨设备更新采用版本比较，网络失败显示未同步。
 - **私有云盘**：大文件分片上传、暂停续传、速度与进度显示、可调并发、文件搜索与重命名、30 天回收站。支持普通下载；提供文件保存接口的浏览器还支持校验后的并行下载与页面内暂停/继续。
 
-当前不提供公共社区、多用户协作、任意 URL 抓取、全文镜像或数据导入。云盘文件独立管理，不执行、解压或在线预览，不提供匿名分享。摘要来自公开来源及人工整理，未接入付费 AI 生成。GitHub 排序是本站观测范围内的数据，不是官方全站榜单；没有足够真实快照时不虚构增长。
+当前不提供公共社区、账号间资料共享、任意 URL 抓取、全文镜像或数据导入。云盘文件独立管理，不执行、解压或在线预览，不提供匿名分享。摘要来自公开来源及人工整理，未接入付费 AI 生成。GitHub 排序是本站观测范围内的数据，不是官方全站榜单；没有足够真实快照时不虚构增长。
 
 云盘默认 16 MiB 分片、4 路并发（最多 8 路），默认单文件上限 1 TiB，空间不足时会拒绝创建上传。传输不设固定速率限制，但实际速度受客户端、服务器出口、磁盘与代理线路影响；Cloudflare Tunnel 同样可能成为瓶颈。并发调高不保证更快。上传未完成内容保留 7 天；刷新后重新选择同一文件并校验已保存分片即可继续。并行下载的暂停状态仅保留于当前页面，关闭页面后请重新选择保存位置；也可使用浏览器原生下载管理器。
 
@@ -44,7 +46,7 @@
                     白名单 RSS / GitHub API
 ```
 
-Next.js、TypeScript、Ant Design、PostgreSQL、Better Auth 与 pg-boss 组成单仓库应用。web 与 worker 使用不同数据库角色；管理员角色只供迁移及账号管理。Docker 仅暴露 Caddy 的 80/443，数据库和应用端口留在容器网络。依赖通过 `package-lock.json` 固定，基础镜像按摘要锁定。取舍见 [ADR 0003](docs/adr/0003-self-hosted-architecture.md)。
+Next.js、TypeScript、Ant Design、PostgreSQL、Better Auth 与 pg-boss 组成单仓库应用。web 与 worker 使用不同数据库角色；数据库管理员角色只供迁移和主账号初始化/恢复，成员管理由受保护的应用接口处理。资讯表与游戏存档采用账号复合键和 RLS，运行连接没有跨账号默认身份。Docker 仅暴露 Caddy 的 80/443，数据库和应用端口留在容器网络。依赖通过 `package-lock.json` 固定，基础镜像按摘要锁定。取舍见 [ADR 0003](docs/adr/0003-self-hosted-architecture.md)。
 
 ## Docker 安装流程
 
@@ -150,7 +152,7 @@ docker compose --profile tools run --rm admin npm run owner:recover -- --confirm
 
 ## 本地开发与检查
 
-需要 Node.js 22+、npm、Git 和独立 PostgreSQL。开发/测试/生产须分库分密钥；集成测试会创建/删除测试库，部分领域测试会重建测试数据，**不得指向生产**。
+需要 Node.js 22+、npm、Git、JDK 17+、tar 和独立 PostgreSQL。Java 仅用于游戏构建；Docker 构建阶段自动安装 JDK，运行镜像不携带 Java。开发/测试/生产须分库分密钥；集成测试会创建/删除测试库，部分领域测试会重建测试数据，**不得指向生产**。
 
 ```powershell
 npm ci
@@ -163,6 +165,7 @@ Copy-Item .env.example .env
 ```powershell
 npm run migrate
 npm run owner:create -- --email local@example.test
+npm run build:game
 npm run dev
 ```
 
@@ -171,6 +174,8 @@ npm run dev
 ```powershell
 node --env-file=.env --import tsx src/worker.ts
 ```
+
+游戏构建与继续开发见 [游戏说明](docs/development/shattered-pixel-dungeon.md)。0.3.0 结构升级后禁止直接切回单账号旧应用，回退须恢复迁移前配对快照。
 
 日常运行 `npm run check`（规范、ESLint、类型、Node 测试）和 `npm run build`。没有显式测试库时数据库用例会跳过，跳过不等于通过。完整测试先配置专用 PostgreSQL 管理员连接及 `TEST_DATABASE_URL`、`AUTH_TEST_DATABASE_URL`、`DATABASE_URL`、`RUN_DB_TESTS=1`、`COLLECTOR_DATABASE_TEST=1` 和测试认证环境，再迁移并运行 `check`；具体见 [CI 配置](.github/workflows/quality.yml)。`setup` 仅配置当前仓库的 hooks 与换行策略，新克隆后执行一次。
 

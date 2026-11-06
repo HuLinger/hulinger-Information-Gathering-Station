@@ -41,7 +41,7 @@ PR 必须说明问题、最终行为、验证、截图（适用时）、数据�
 
 远程按用户明确要求更名并公开为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)，依据见 [ADR 0004](adr/0004-public-source-repository.md)。下列设置须核实实际生效；仓库内的 YAML 不会自动启用分支保护，结果记录在 [验收记录](verification/v1-validation.md)：
 
-1. 代码仓库公开，默认分支 `main`；业务数据、真实配置和备份不得入库，部署网站只允许本人登录后访问。
+1. 代码仓库公开，默认分支 `main`；业务数据、真实配置和备份不得入库，部署网站仅允许主账号及其创建的成员登录，各账号数据独立。
 2. 要求 PR 合并、会话解决、状态检查通过；必须检查名称为 `Repository baseline`，应用建立后加入真正的构建与测试检查。
 3. 禁止 force push 和删除 `main`，将规则应用到管理员；禁止将常规绕过作为发布方式。
 4. 单人阶段不要求不存在的第二位审核者；有协作者后对 UI、权限、数据迁移等改动要求至少一位其他人员审核。

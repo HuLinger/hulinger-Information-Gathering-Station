@@ -19,7 +19,10 @@ exports
 coverage
 test-results
 playwright-report
-docs
+docs/*
+!docs/development
+docs/development/*
+!docs/development/shattered-pixel-dungeon.md
 tests
 design/*
 !design/tokens.json
@@ -27,3 +30,6 @@ design/*
 compose.override.yml
 compose.override.yaml
 .deploy
+.games
+**/.gradle
+**/build

@@ -9,7 +9,7 @@ import { dateText, EmptyState } from './format';
 
 interface ExportJob { id: string; status: string; created_at: string; finished_at: string | null; error: string | null; expires_at: string | null }
 
-export default function SettingsPanel({ user, act, density, onDensity, onSources }: { user?: AuthStatus['user']; act: HubAction; density: string; onDensity: (value: string) => void; onSources: () => void }) {
+export default function SettingsPanel({ user, act, density, onDensity, onSources, onSignedOut }: { user?: AuthStatus['user']; act: HubAction; density: string; onDensity: (value: string) => void; onSources: () => void; onSignedOut?: () => void }) {
   const router = useRouter();
   const { modal } = App.useApp();
   const [exports, setExports] = useState<ExportJob[]>([]);
@@ -58,12 +58,13 @@ export default function SettingsPanel({ user, act, density, onDensity, onSources
     finally { setPending(false); }
   }
   return <div className="settings-grid">
-    <section className="surface-panel settings-section"><h2><SafetyCertificateOutlined /> 你的工作空间</h2><p className="muted">单人私有，只有已配置的拥有者能够访问。</p><Descriptions column={1} items={[
-      { key: 'name', label: '拥有者', children: user?.name || 'Hulinger' },
-      { key: 'email', label: '登录邮箱', children: user?.email || '当前拥有者' },
-      { key: 'mfa', label: '身份保护', children: <Tag color="green">双重验证已启用</Tag> },
+    <section className="surface-panel settings-section"><h2><SafetyCertificateOutlined /> 你的工作空间</h2><p className="muted">资料按账号独立保存，这里管理当前账号的偏好与导出。</p><Descriptions column={1} items={[
+      { key: 'name', label: '当前账号', children: user?.name || '当前用户' },
+      { key: 'username', label: '登录用户名', children: user?.username || (user?.role === 'owner' ? 'admin' : '当前成员') },
+      ...(user?.role === 'owner' ? [{ key: 'email', label: '主账号邮箱', children: user.email }] : []),
+      { key: 'mfa', label: '身份保护', children: <Tag color="success">{user?.role === 'owner' ? '双重验证已启用' : '用户名与密码登录'}</Tag> },
       { key: 'timezone', label: '时间显示', children: 'Asia/Shanghai（北京时间）' },
-    ]} /><div className="setting-row"><div><strong>列表密度</strong><p className="muted">仅保存在这台设备，不改变另一设备的阅读方式。</p></div><Select aria-label="列表密度" value={density} onChange={onDensity} options={[{ value: 'comfortable', label: '舒适' }, { value: 'compact', label: '紧凑' }]} /></div><Space wrap><Button onClick={onSources}>来源管理</Button><Button icon={<LogoutOutlined />} onClick={() => modal.confirm({ title: '退出当前工作空间？', content: '当前登录会话会在服务端撤销。', okText: '退出登录', cancelText: '取消', onOk: async () => { await postJson('/api/auth/sign-out', {}); router.replace('/login'); router.refresh(); } })}>退出登录</Button></Space></section>
+    ]} /><div className="setting-row"><div><strong>列表密度</strong><p className="muted">仅保存在这台设备，不改变另一设备的阅读方式。</p></div><Select aria-label="列表密度" value={density} onChange={onDensity} options={[{ value: 'comfortable', label: '舒适' }, { value: 'compact', label: '紧凑' }]} /></div><Space wrap><Button onClick={onSources}>来源管理</Button><Button icon={<LogoutOutlined />} onClick={() => modal.confirm({ title: '退出当前工作空间？', content: '当前登录会话会在服务端撤销。', okText: '退出登录', cancelText: '取消', onOk: async () => { await postJson('/api/auth/sign-out', {}); if (onSignedOut) onSignedOut(); else { router.replace('/login'); router.refresh(); } } })}>退出登录</Button></Space></section>
     <section className="surface-panel settings-section"><div className="section-heading"><div><h2>带走你的资料</h2><p className="muted">完整导出资讯、来源、实体关系和个人整理。</p></div><Button type="primary" icon={<DownloadOutlined />} loading={pending} onClick={() => void createExport()}>创建导出</Button></div>
       <Alert type="info" showIcon title="结构化 JSON · 含格式版本与字段说明" description="包含收藏、关注、已读、标签、私人备注及必要修订；不包含密码或服务凭据。导出文件含私人资料，请妥善保存。数据导出不能替代服务器备份。" className="section-alert" />
       {error && <Alert type="error" showIcon title={error} className="section-alert" />}
