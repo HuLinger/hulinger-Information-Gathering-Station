@@ -8,6 +8,7 @@
   "originalTrackedFiles": 1892,
   "originalTrackedBytes": 84331574,
   "localChanges": [
+    "Vertexbuffer.java: preserve source offsets when copying dirty Web tile vertices; avoid TeaVM typed-array bulk put",
     "WebLauncher.java: account/run-specific IndexedDB and preference namespaces",
     "WebShatteredPixelDungeon.java: completed-save events, host pause/save controls, and defer canvas resize until a stable turn",
     "web/build.gradle: working directory for isolated Web build",
@@ -15,6 +16,7 @@
     "Host integration sources: src/game/shattered-pixel-dungeon and scripts/build-game.mjs"
   ],
   "localModifiedFiles": [
+    "SPD-classes/src/main/java/com/watabou/glwrap/Vertexbuffer.java",
     "web/build.gradle",
     "web/src/main/java/com/shatteredpixel/shatteredpixeldungeon/web/WebLauncher.java",
     "web/src/main/java/com/shatteredpixel/shatteredpixeldungeon/web/WebShatteredPixelDungeon.java"

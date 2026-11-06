@@ -16,7 +16,9 @@ npm run build
 
 也可独立运行 `node scripts/build-game.mjs`；`--force` 强制重新构建。脚本使用已保留的 Gradle 9.4.0 wrapper 与 Web 专用 [settings.gradle](../../third_party/shattered-pixel-dungeon-web/web-build/settings.gradle)，只加载 `SPD-classes`、`core`、`services` 和 `web`，不需要 Android SDK、iOS 工具链或桌面打包插件。原多平台构建文件仍保留，便于后续二次开发。
 
-产物生成在忽略入库的 `.games/shattered-pixel-dungeon-web`。其中 `manifest.json` 记录上游提交、本地源码摘要和逐文件 SHA-256；只有全部文件摘要匹配才复用缓存。`source.tar.gz` 包含此构建对应的游戏源码、本站桥接源码、构建脚本与本文；游戏页的“说明”提供下载与许可证入口。不要把本地 Gradle 缓存或构建产物提交到 Git。
+产物生成在忽略入库的 `.games/shattered-pixel-dungeon-web`。其中 `manifest.json` 记录上游提交、本地源码摘要和逐文件 SHA-256；只有全部文件摘要匹配才复用缓存。`source.tar.gz` 包含此构建对应的游戏源码、本站桥接源码、构建与渲染验证脚本及本文；游戏页的“说明”提供下载与许可证入口。不要把本地 Gradle 缓存或构建产物提交到 Git。
+
+构建及缓存复用都会执行 [渲染回归验证](../../scripts/verify-game-rendering.mjs)：直接加载编译后的游戏和 TeaVM NIO 实现，替换 GPU 边界并核对局部更新前后顶点一致性。覆盖整块、首段、中段、尾段、合并范围、连续更新和无变更七类情况；失败会阻止产物交付。可单独执行 `node scripts/verify-game-rendering.mjs .games/shattered-pixel-dungeon-web/app.js`。验证依赖固定编译器生成的符号，升级编译器时需同步审查验证器。
 
 原版实测 Web 构建共 478 个文件、76,666,093 字节，其中 `app.js` 为 32,593,700 字节，未计算 HTTP 压缩。首次进入游戏才加载这些资源。构建中的全部 Java 类和素材保留，未通过删除游戏内容缩减体积；服务器是否开启传输压缩另以部署配置为准。
 
@@ -32,7 +34,9 @@ npm run build
 
 修改后重新运行游戏构建，再运行主项目检查与生产构建，并实际创建角色、移动、战斗、保存、刷新和继续游戏。原游戏内部版本号用于存档迁移，不要随意改回 1；改动存档结构必须另行提供兼容和恢复方案。
 
-追踪上游时，在隔离目录取得明确的新提交，审查与当前固定提交的差异，保留本站两个 Java 接入点及 Web 专用构建入口；更新 `UPSTREAM.json` 并重新验证旧存档。不要用最新远程构建文件覆盖服务器现存存档，也不要在运行中的服务器直接修改游戏脚本。
+2026-11-06 修正 Web 局部顶点上传：当前 TeaVM 运行库的 typed-array `FloatBuffer.put(FloatBuffer)` 复制非零起点时取错源位置，造成同层探索后旧房间被其他地形覆盖的画面错误。`Vertexbuffer` 改为按绝对源索引逐项复制，避免改动源缓冲的位置与上限；地图生成和存档格式不变。
+
+追踪上游时，在隔离目录取得明确的新提交，审查与当前固定提交的差异，保留本站 Java 接入、顶点复制修复及 Web 专用构建入口；更新 `UPSTREAM.json` 并重新验证旧存档。不要用最新远程构建文件覆盖服务器现存存档，也不要在运行中的服务器直接修改游戏脚本。
 
 ## 存档协议与账号边界
 

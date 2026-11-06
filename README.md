@@ -2,15 +2,15 @@
 
 给自己使用的私有 AI 信息集合工具：自动收集公开模型公告与 GitHub 开源项目，保留可核验来源，在电脑和手机上阅读、查找、整理和导出。
 
-**当前版本：0.3.0，加入小工具、地牢游戏与受主管理的独立账号。** 提供源码、数据库迁移、Windows 候选更新工具和 Docker Compose 部署手册。公开代码仓库为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)。所有业务登录后使用，admin 保留 MFA，成员使用用户名和密码登录。此版本尚未在用户现有 Windows 服务器部署；升级验证、异地备份及告警按 [上线门禁](docs/production-readiness.md) 落实。
+**当前版本：0.3.1，修复地牢探索时的地图覆盖。** 提供源码、数据库迁移、Windows 候选更新工具和 Docker Compose 部署手册。公开代码仓库为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)。所有业务登录后使用，admin 保留 MFA，成员使用用户名和密码登录。此版本尚未在用户现有 Windows 服务器部署；升级验证、异地备份及告警按 [上线门禁](docs/production-readiness.md) 落实。
 
 ## 最新更新
 
 ### 2026-11-06
 
-新增“小工具”卡片和破碎的像素地牢 Web 游戏，提供账号独立的云端存档与二次开发源码；admin 可管理成员和查看登录记录。每个账号独立使用资讯、来源、整理、云盘和导出，新成员不继承主账号内容。补齐游戏横竖屏切换、加载等待与存档冲突提示。详情见 [发布说明](docs/releases/release-notes.md)、[变更记录](CHANGELOG.md) 和 [游戏二次开发](docs/development/shattered-pixel-dungeon.md)。
+新增“小工具”卡片和破碎的像素地牢 Web 游戏，提供账号独立的云端存档与二次开发源码；admin 可管理成员和查看登录记录。每个账号独立使用资讯、来源、整理、云盘和导出，新成员不继承主账号内容。补齐游戏横竖屏切换、加载等待与存档冲突提示，并修复同层探索时房间地形覆盖、楼梯被遮住的画面错误，现有存档可继续使用。详情见 [发布说明](docs/releases/release-notes.md)、[变更记录](CHANGELOG.md) 和 [游戏二次开发](docs/development/shattered-pixel-dungeon.md)。
 
-[小工具桌面截图](docs/verification/images/tools/tools-1440x900.jpg) · [账号与工具交互验收](docs/verification/tools-ui-validation.md) · [0.3.0 检查记录](docs/verification/v0.3-validation.md)
+[小工具桌面截图](docs/verification/images/tools/tools-1440x900.jpg) · [账号与工具交互验收](docs/verification/tools-ui-validation.md) · [0.3.0 检查记录](docs/verification/v0.3-validation.md) · [0.3.1 地图修复验证](docs/verification/game-rendering-fix-validation.md)
 
 ## 首版能力
 

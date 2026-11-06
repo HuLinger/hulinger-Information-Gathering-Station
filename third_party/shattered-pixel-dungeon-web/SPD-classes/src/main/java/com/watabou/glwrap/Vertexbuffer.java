@@ -87,15 +87,13 @@ public class Vertexbuffer {
 			if (DeviceCompat.isWeb()) {
 				// TeaVM's WebGL bridge uploads the entire typed-array view, so give it a
 				// buffer that contains exactly the dirty range for partial updates.
-				int position = vertices.position();
-				int limit = vertices.limit();
 				FloatBuffer update = BufferUtils.newFloatBuffer(length);
-				((Buffer)vertices).position(updateStart);
-				((Buffer)vertices).limit(updateEnd);
-				update.put(vertices);
+				// TeaVM's typed-array bulk put uses the destination index as the source
+				// offset. Copy by absolute source index so dirty tiles keep their geometry.
+				for (int i = updateStart; i < updateEnd; i++) {
+					update.put(vertices.get(i));
+				}
 				((Buffer)update).position(0);
-				((Buffer)vertices).limit(limit);
-				((Buffer)vertices).position(position);
 				Gdx.gl.glBufferSubData(Gdx.gl.GL_ARRAY_BUFFER, updateStart*4, length*4, update);
 			} else {
 				((Buffer)vertices).position(updateStart);

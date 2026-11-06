@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statS
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { verifyGameRendering } from './verify-game-rendering.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const vendor = join(root, 'third_party/shattered-pixel-dungeon-web');
@@ -20,7 +21,7 @@ function filesIn(directory) {
   });
 }
 function sha256(path) { return createHash('sha256').update(readFileSync(path)).digest('hex'); }
-const sourceFiles = [...filesIn(vendor), ...filesIn(bridge), fileURLToPath(import.meta.url), join(root, 'docs/development/shattered-pixel-dungeon.md')];
+const sourceFiles = [...filesIn(vendor), ...filesIn(bridge), fileURLToPath(import.meta.url), join(root, 'scripts/verify-game-rendering.mjs'), join(root, 'docs/development/shattered-pixel-dungeon.md')];
 const inputHash = createHash('sha256');
 for (const file of sourceFiles) inputHash.update(relative(root, file).split(sep).join('/')).update('\0').update(readFileSync(file)).update('\0');
 const sourceSha256 = inputHash.digest('hex');
@@ -33,6 +34,8 @@ if (!process.argv.includes('--force') && existsSync(manifestPath)) {
         const path = resolve(output, file.path);
         return path.startsWith(output + sep) && existsSync(path) && sha256(path) === file.sha256;
       })) {
+      const { caseCount } = verifyGameRendering(join(output, 'app.js'));
+      console.log(`Game rendering verification passed: ${caseCount} compiled-runtime cases.`);
       console.log(`Game build verified from cache: ${previous.files.length} files, source ${sourceSha256.slice(0, 12)}.`);
       process.exit(0);
     }
@@ -56,6 +59,8 @@ run(java, ['-Dfile.encoding=UTF-8', '-jar', 'gradle/wrapper/gradle-wrapper.jar',
 const generated = join(vendor, 'web/build/dist/webapp');
 if (!existsSync(join(generated, 'app.js'))) throw new Error('The game build did not produce app.js.');
 run(process.execPath, ['--check', join(generated, 'app.js')]);
+const { caseCount } = verifyGameRendering(join(generated, 'app.js'));
+console.log(`Game rendering verification passed: ${caseCount} compiled-runtime cases.`);
 
 // This deletion is restricted to the exact generated artifact directory.
 // Neither the vendored source nor unrelated workspace paths can be removed.
@@ -68,7 +73,7 @@ cpSync(join(vendor, 'LICENSE.txt'), join(output, 'LICENSE.txt'));
 cpSync(join(vendor, 'UPSTREAM.json'), join(output, 'UPSTREAM.json'));
 run('tar', ['-czf', join(output, 'source.tar.gz'), '--exclude=build', '--exclude=.gradle', '--exclude=.git',
   '-C', root, 'third_party/shattered-pixel-dungeon-web', 'src/game/shattered-pixel-dungeon',
-  'scripts/build-game.mjs', 'docs/development/shattered-pixel-dungeon.md']);
+  'scripts/build-game.mjs', 'scripts/verify-game-rendering.mjs', 'docs/development/shattered-pixel-dungeon.md']);
 
 const artifacts = filesIn(output).map((file) => ({ path: relative(output, file).split(sep).join('/'), bytes: statSync(file).size, sha256: sha256(file) }));
 const manifest = { formatVersion: 1, game: 'shattered-pixel-dungeon', upstreamCommit: upstream.commit, sourceSha256, totalBytes: artifacts.reduce((sum, file) => sum + file.bytes, 0), files: artifacts };
