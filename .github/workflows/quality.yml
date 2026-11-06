@@ -202,7 +202,9 @@ jobs:
         run: npx tsx scripts/verify-conversion-engines.ts
       - name: Engine status on failure
         if: failure()
-        run: test ! -f .env.conversion || docker compose --env-file .env.conversion -f integrations/conversion/compose.yml ps -a
+        run: |
+          test ! -f .env.conversion || docker compose --env-file .env.conversion -f integrations/conversion/compose.yml ps -a
+          test ! -f .env.conversion || docker compose --env-file .env.conversion -f integrations/conversion/compose.yml logs --tail 60 gateway
       - name: Remove isolated engine containers
         if: always()
         run: test ! -f .env.conversion || docker compose --env-file .env.conversion -f integrations/conversion/compose.yml down --volumes

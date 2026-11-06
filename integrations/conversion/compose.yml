@@ -19,7 +19,9 @@ x-engine-defaults: &engine-defaults
 services:
   gateway:
     <<: *engine-defaults
-    image: caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
+    build:
+      context: ./gateway
+    image: hulinger-conversion-gateway:2.11.7
     user: "1000:1000"
     cpus: 0.5
     mem_limit: 128m

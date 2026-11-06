@@ -40,11 +40,11 @@ export function parseArguments(args) {
       case '--runtime-env-file': options.runtimeEnvFile = resolve(takeValue(index++, argument)); break;
       case '--start': options.start = true; options.initialize = true; break;
       case '--initialize': options.initialize = true; break;
-      case '--build': options.buildEngines.push('stirling', 'ncmdump'); break;
+      case '--build': options.buildEngines.push('gateway', 'stirling', 'ncmdump'); break;
       case '--build-engine': {
         const engine = takeValue(index++, argument);
-        if (!['stirling', 'ncmdump'].includes(engine)) {
-          throw new SetupError('--build-engine 只接受 stirling 或 ncmdump。');
+        if (!['gateway', 'stirling', 'ncmdump'].includes(engine)) {
+          throw new SetupError('--build-engine 只接受 gateway、stirling 或 ncmdump。');
         }
         options.buildEngines.push(engine);
         break;
@@ -314,8 +314,8 @@ export async function main(args = process.argv.slice(2)) {
 默认只准备独立引擎配置，不启动 Docker 或修改现有 web/worker。
   --env-file PATH          凭据文件（默认仓库根 .env.conversion）
   --runtime-env-file PATH  主站变量文件（默认凭据路径加 .runtime）
-  --build                 构建本地 Stirling、NCM 镜像
-  --build-engine NAME     只构建 stirling 或 ncmdump，可重复
+  --build                 构建本地网关、Stirling、NCM 镜像
+  --build-engine NAME     只构建 gateway、stirling 或 ncmdump，可重复
   --start                 启动四引擎并初始化 Transmute（需要先构建本地镜像）
   --initialize            只初始化已经运行的 Transmute
   --wait-seconds N        就绪等待秒数，默认 300，最大 3600

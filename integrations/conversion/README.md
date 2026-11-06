@@ -33,7 +33,7 @@ docker compose --env-file .env.conversion -f integrations/conversion/compose.yml
 node -- scripts/setup-converters.mjs --build --start
 ```
 
-`--build` 只构建本地 Stirling 与 NCM 镜像，ConvertX、Transmute 和回环网关使用固定摘要的上游镜像。`--start` 启动项目名为 `hulinger-conversion` 的四个引擎及网关，等待健康检查后初始化 Transmute。只构建一个本地镜像可用 `--build-engine stirling` 或 `--build-engine ncmdump`；对已经运行的引擎补做初始化可用：
+`--build` 构建本地网关、Stirling 与 NCM 镜像，均以固定摘要为基础；ConvertX、Transmute 直接使用固定摘要的上游镜像。`--start` 启动项目名为 `hulinger-conversion` 的四个引擎及网关，等待健康检查后初始化 Transmute。只构建一个本地镜像可用 `--build-engine gateway`、`--build-engine stirling` 或 `--build-engine ncmdump`；对已经运行的引擎补做初始化可用：
 
 ```powershell
 node -- scripts/setup-converters.mjs --initialize
@@ -93,6 +93,8 @@ Transmute 的账号、API key 哈希和设置位于独立 `transmute-db` 卷的 
 ## 网络、资源与临时文件
 
 四个引擎只加入 `internal: true` 的 `conversion` 网络，不发布宿主端口。独立 `gateway` 使用与主站相同版本及摘要的 Caddy，加入 `conversion` 与普通 `access` 网络；只有它将四个端口映射到 `127.0.0.1`。固定配置见 [Caddyfile](Caddyfile)，每个端口只代理对应引擎，不接受动态目标，关闭管理 API 和自动 HTTPS。它不加入网站业务网络，也不持有 API key、文件卷或网站密钥。
+
+网关的 [Dockerfile](gateway/Dockerfile) 仅移除官方 Caddy 二进制附带的 `cap_net_bind_service=ep` 文件能力，保留二进制原始内容。本网关只监听 8090–8094，不需要特权端口能力；保留 `cap_drop: ALL`、非 root 和 `no-new-privileges`。直接用带该文件能力的上游镜像会被 Linux 拒绝执行，不能通过授予额外运行权限绕过这一问题。对应固定源码见 [Caddy v2.11.7 Dockerfile](https://github.com/caddyserver/caddy-docker/blob/9234f5785658cae8129bfae366e196d0670468ac/2.11/alpine/Dockerfile)。
 
 这一层用于 Windows 宿主访问和初始化：仅接入内部网络的容器在部分 Docker Engine / Desktop 版本中不会实际发布端口，即使配置仍显示端口绑定。不能把 `conversion.internal` 关掉来绕过限制。Docker 主站继续使用内部 DNS 直达引擎。UNO 等内部子进程端口不映射；引擎运行时没有外网通路，下载模型、远程 URL 转换和远程内容抓取不在本次接入范围。可参考 [Docker 内部网络说明](https://docs.docker.com/reference/cli/docker/network/create/#internal)和[上游同类问题](https://github.com/moby/moby/discussions/53256)。
 
