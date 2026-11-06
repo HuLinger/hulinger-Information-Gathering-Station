@@ -1,0 +1,452 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-06",
+  "environment": "Isolated local synthetic preview database; Next.js development service http://127.0.0.1:3001. Not production deployment evidence.",
+  "browser": {
+    "name": "Chromium",
+    "version": "155.0.8059.86"
+  },
+  "axe": {
+    "version": "4.14.0",
+    "options": {
+      "runOnly": {
+        "type": "tag",
+        "values": [
+          "wcag2a",
+          "wcag2aa",
+          "wcag21a",
+          "wcag21aa",
+          "wcag22aa"
+        ]
+      }
+    }
+  },
+  "results": [
+    {
+      "label": "desktop-owner-accounts",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "url": "http://127.0.0.1:3001/?view=accounts",
+      "violations": [],
+      "incomplete": [],
+      "passes": 29,
+      "fit": {
+        "width": 1440,
+        "height": 900,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      }
+    },
+    {
+      "label": "mobile-create-member-dialog",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "url": "http://127.0.0.1:3001/?view=accounts",
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "nodes": [
+            {
+              "target": [
+                "#username_extra"
+              ],
+              "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it partially overlaps other elements"
+            }
+          ]
+        }
+      ],
+      "passes": 31,
+      "fit": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "label": "mobile-owner-accounts",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "url": "http://127.0.0.1:3001/?view=accounts",
+      "violations": [],
+      "incomplete": [],
+      "passes": 27,
+      "fit": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "label": "mobile-reset-password-dialog",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "url": "http://127.0.0.1:3001/?view=accounts",
+      "violations": [],
+      "incomplete": [],
+      "passes": 31,
+      "fit": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "label": "mobile-owner-login-records",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "url": "http://127.0.0.1:3001/?view=accounts",
+      "violations": [],
+      "incomplete": [],
+      "passes": 31,
+      "fit": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "label": "mobile-owner-tools",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "url": "http://127.0.0.1:3001/?view=tools",
+      "violations": [],
+      "incomplete": [],
+      "passes": 25,
+      "fit": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "label": "desktop-member-tools",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "url": "http://127.0.0.1:3001/?view=tools",
+      "violations": [],
+      "incomplete": [],
+      "passes": 27,
+      "fit": {
+        "width": 1440,
+        "height": 900,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      }
+    },
+    {
+      "label": "desktop-login",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "url": "http://127.0.0.1:3001/login",
+      "violations": [],
+      "incomplete": [],
+      "passes": 27,
+      "fit": {
+        "width": 1440,
+        "height": 900,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      }
+    },
+    {
+      "label": "mobile-login",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "url": "http://127.0.0.1:3001/login",
+      "violations": [],
+      "incomplete": [],
+      "passes": 27,
+      "fit": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "label": "mobile-login-required-errors",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "url": "http://127.0.0.1:3001/login",
+      "violations": [],
+      "incomplete": [],
+      "passes": 27,
+      "fit": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "label": "desktop-create-member-dialog",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "url": "http://127.0.0.1:3001/?view=accounts",
+      "violations": [],
+      "incomplete": [],
+      "passes": 31,
+      "fit": {
+        "width": 1440,
+        "height": 900,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      }
+    },
+    {
+      "label": "mobile-create-member-required-errors",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "url": "http://127.0.0.1:3001/?view=accounts",
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "color-contrast",
+          "nodes": [
+            {
+              "target": [
+                "#username_extra"
+              ],
+              "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it partially overlaps other elements"
+            }
+          ]
+        }
+      ],
+      "passes": 31,
+      "fit": {
+        "width": 390,
+        "height": 844,
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "label": "desktop-owner-login-records",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "url": "http://127.0.0.1:3001/?view=accounts",
+      "violations": [],
+      "incomplete": [],
+      "passes": 31,
+      "fit": {
+        "width": 1440,
+        "height": 900,
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      }
+    }
+  ],
+  "manualReview": [
+    {
+      "rule": "color-contrast",
+      "target": "#username_extra",
+      "states": [
+        "mobile-create-member-dialog",
+        "mobile-create-member-required-errors"
+      ],
+      "automatedResult": "incomplete; retained as reported by axe",
+      "conclusion": "Text is visually unobscured and contrast is above 4.5:1. This manual observation does not change the automated incomplete status.",
+      "foreground": "#595959",
+      "background": "#ffffff",
+      "calculatedContrastRatio": 7,
+      "dialogEvidence": {
+        "foreground": "rgb(89, 89, 89)",
+        "background": "rgba(0, 0, 0, 0)",
+        "modalBackground": "rgb(255, 255, 255)",
+        "rect": {
+          "x": 32,
+          "y": 234,
+          "width": 326,
+          "height": 44,
+          "top": 234,
+          "right": 358,
+          "bottom": 278,
+          "left": 32
+        },
+        "atPoints": [
+          {
+            "x": 33,
+            "y": 235,
+            "top": "username_extra"
+          },
+          {
+            "x": 357,
+            "y": 235,
+            "top": "username_extra"
+          },
+          {
+            "x": 33,
+            "y": 277,
+            "top": "username_extra"
+          },
+          {
+            "x": 357,
+            "y": 277,
+            "top": "username_extra"
+          },
+          {
+            "x": 195,
+            "y": 256,
+            "top": "username_extra"
+          }
+        ],
+        "modalRect": {
+          "x": 8,
+          "y": 108,
+          "width": 374,
+          "height": 586,
+          "top": 108,
+          "right": 382,
+          "bottom": 694,
+          "left": 8
+        }
+      },
+      "errorEvidence": {
+        "foreground": "rgb(89, 89, 89)",
+        "modalBackground": "rgb(255, 255, 255)",
+        "rect": {
+          "x": 32,
+          "y": 256,
+          "width": 326,
+          "height": 44,
+          "top": 256,
+          "right": 358,
+          "bottom": 300,
+          "left": 32
+        },
+        "topElements": [
+          "username_extra",
+          "username_extra",
+          "username_extra",
+          "username_extra",
+          "username_extra"
+        ]
+      },
+      "screenshots": [
+        "images/tools/axe-mobile-create-member-final.png",
+        "images/tools/axe-mobile-create-member-errors-final.png"
+      ]
+    }
+  ],
+  "wideViewport": {
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "tools": {
+      "panel": {
+        "x": 288,
+        "y": 217.59375,
+        "width": 1440,
+        "height": 334,
+        "top": 217.59375,
+        "right": 1728,
+        "bottom": 551.59375,
+        "left": 288
+      },
+      "main": {
+        "x": 248,
+        "y": 72,
+        "width": 1672,
+        "height": 543.59375,
+        "top": 72,
+        "right": 1920,
+        "bottom": 615.59375,
+        "left": 248
+      },
+      "maxWidth": "1440px",
+      "card": {
+        "x": 288,
+        "y": 255.59375,
+        "width": 464,
+        "height": 296,
+        "top": 255.59375,
+        "right": 752,
+        "bottom": 551.59375,
+        "left": 288
+      },
+      "scrollWidth": 1920,
+      "clientWidth": 1920
+    },
+    "accounts": {
+      "panel": {
+        "x": 288,
+        "y": 211.59375,
+        "width": 1440,
+        "height": 458,
+        "top": 211.59375,
+        "right": 1728,
+        "bottom": 669.59375,
+        "left": 288
+      },
+      "main": {
+        "x": 248,
+        "y": 72,
+        "width": 1672,
+        "height": 661.59375,
+        "top": 72,
+        "right": 1920,
+        "bottom": 733.59375,
+        "left": 248
+      },
+      "maxWidth": "1440px",
+      "scrollWidth": 1920,
+      "clientWidth": 1920
+    },
+    "screenshots": [
+      "images/tools/tools-1920-final.png",
+      "images/tools/accounts-1920-final.png"
+    ]
+  },
+  "keyboard": {
+    "passwordVisibilityToggle": {
+      "testedViewport": {
+        "width": 390,
+        "height": 844
+      },
+      "reachableFromPasswordByTab": true,
+      "measuredTarget": {
+        "width": 44,
+        "height": 44
+      },
+      "focusOutline": "solid"
+    }
+  },
+  "limitations": [
+    "Automated WCAG-tagged checks do not establish full WCAG conformance.",
+    "No screen-reader or physical-mobile testing in this independent pass.",
+    "Snapshots and viewport geometry are from local synthetic data."
+  ]
+}

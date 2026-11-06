@@ -81,7 +81,7 @@ git -C $candidate diff --name-only --diff-filter=U
 | 文件权限 | Web、worker 服务账号可读写云盘目录，Caddy 快速下载账号只读，维护/备份账号可读取完整云盘树。候选由运维账号克隆，不继承旧源码目录的 ACL：另行验证 Web/worker 可读取候选源码、依赖和构建，Web 可写其运行缓存目录。沿用原服务隔离，不把目录授予 Everyone。 |
 | 容量 | 检查磁盘余量、单文件上限、云盘配额和保留空间；配置含义见 [环境样例](../.env.example)。默认分片 16 MiB、上传 4 路，服务端并发上限 8。 |
 | Caddy | 将仓库 [Caddyfile](../Caddyfile) 的云盘路由合入现有配置，保留原域名、Tunnel、TLS 和客户端地址策略；全部 `web:3000` 改为现有 Web 回环地址，文件根改为实际 `objects` 的 Windows 路径（含空格时加引号）。模板各处 `header_up X-Forwarded-For {remote_host}` 面向直接入口，Tunnel 部署须逐处沿用现有可信代理取址策略，否则会把所有访问者记录为 cloudflared 的回环地址。只信任已配置的代理链，不无条件信任客户端自带的 CF/X-Forwarded 头。使用 2.11.7 或经验证的更新安全版本，最低不能低于 2.11.2。 |
-| 上传与下载 | 精确分片 PUT 路径允许 33 MiB；游戏存档 PUT `/api/tools/shattered-pixel-dungeon/save` 单独允许 32 MiB，其他业务接口继续保持小请求限制。下载必须先清除客户端 `X-Drive-*`，再验证登录/MFA、完成状态和安全文件名；不得单独暴露文件目录。保留 attachment、private/no-store、Range/If-Range，下载不压缩。 |
+| 上传与下载 | 精确分片 PUT 路径允许 33 MiB；游戏存档 PUT `/api/tools/shattered-pixel-dungeon/save` 单独允许 32 MiB，其他业务接口继续保持小请求限制。下载必须先清除客户端 `X-Drive-*`，再验证有效账号、文件归属与完成状态和安全文件名，主账号另要求 MFA；不得单独暴露文件目录。保留 attachment、private/no-store、Range/If-Range，下载不压缩。 |
 | 配对备份 | 维护服务须把数据库、云盘对象目录与恢复所需身份配置放进同一个加密备份点。备份期间暂停 Web 和 worker 写入及清理；现有只备份数据库的任务不自动覆盖新文件。保持既有每日/每周保留和独立故障域。 |
 | 监控 | 现有健康、备份新鲜度和容量告警继续运行，并检查云盘磁盘和 worker 清理状态。测试一次上传、恢复和备份失败时的可见结果。 |
 

@@ -72,7 +72,7 @@ export default function Login() {
   const title = enrollment ? '连接你的验证器' : status?.state === 'setup-mfa' ? '为私人资料加一道保护' : challenge ? '确认是你本人' : '回到你的工作空间';
 
   return <main className="login-page">
-    <a href="/login" className="brand login-brand" aria-label="Hulinger AI 情报与资料登录页"><strong>HULINGER</strong><span>AI 情报与资料</span></a>
+    <a href="/login" className="brand login-brand"><strong>HULINGER</strong><span>AI 情报与资料</span></a>
     <section className={`login-card${enrollment ? ' enrollment-card' : ''}`} aria-labelledby="login-title">
       <div className="login-symbol"><SafetyCertificateOutlined /></div>
       <div className="eyebrow">YOUR PRIVATE WORKSPACE</div>

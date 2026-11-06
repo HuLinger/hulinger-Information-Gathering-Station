@@ -498,6 +498,7 @@ kbd { border: 1px solid #dce2ed; border-radius: 4px; background: #fff; color: #5
 .app-sidebar .brand, .sidebar-bottom { flex-shrink: 0; }
 .side-nav { min-height: 0; overflow-y: auto; }
 .user-menu > span:not(.anticon) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools-panel, .accounts-panel { max-width: 1440px; }
 .tools-summary { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; margin: 24px 0 16px; color: var(--hub-secondary); }
 .tools-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .tool-card-link { display: block; min-width: 0; color: var(--hub-text); border-radius: 8px; }

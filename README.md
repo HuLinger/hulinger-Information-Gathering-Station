@@ -10,6 +10,8 @@
 
 新增“小工具”卡片和破碎的像素地牢 Web 游戏，提供账号独立的云端存档与二次开发源码；admin 可管理成员和查看登录记录。每个账号独立使用资讯、来源、整理、云盘和导出，新成员不继承主账号内容。详情见 [发布说明](docs/releases/release-notes.md)、[变更记录](CHANGELOG.md) 和 [游戏二次开发](docs/development/shattered-pixel-dungeon.md)。
 
+[小工具桌面截图](docs/verification/images/tools/tools-1440x900.jpg) · [账号与工具交互验收](docs/verification/tools-ui-validation.md) · [0.3.0 检查记录](docs/verification/v0.3-validation.md)
+
 ## 首版能力
 
 - **资讯与资料**：首页、资讯列表、模型/产品档案、开源项目档案、搜索、类型/来源/日期/标签筛选。

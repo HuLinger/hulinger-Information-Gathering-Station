@@ -1,0 +1,74 @@
+{
+  "date": "2026-11-06",
+  "gitleaksVersion": "8.30.1",
+  "config": ".gitleaks.toml",
+  "note": "All injected credential-shaped values were random synthetic controls generated locally. No real credentials were used or retained in this evidence.",
+  "upstream": {
+    "repository": "https://github.com/glassesmonkey/shattered-pixel-dungeon-web",
+    "commit": "ce39efde1c4e9929103a1df684d94fab6aa84bed",
+    "file": "third_party/shattered-pixel-dungeon-web/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndKeyBindings.java",
+    "lines": [
+      399,
+      400
+    ],
+    "sourceSha256": "7ed7d21898ad6dbed2d0c4eacb59317db2ac6712e15d562487a85ddd44756ed5",
+    "sourceMatchesVendoredFile": true
+  },
+  "historyScan": {
+    "head": "9a6a26475556bd746f3d94b8f4d722412f71eb8a",
+    "command": "gitleaks git . --config .gitleaks.toml --redact --no-banner",
+    "commitsScanned": 12,
+    "findings": 0,
+    "exitCode": 0
+  },
+  "controls": [
+    {
+      "name": "exact-upstream-assignments",
+      "expectedFindings": 0,
+      "actualFindings": 0,
+      "rules": [],
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "name": "same-file-secret-shaped-literal",
+      "expectedFindings": 1,
+      "actualFindings": 1,
+      "rules": [
+        "generic-api-key"
+      ],
+      "exitCode": 1,
+      "passed": true
+    },
+    {
+      "name": "same-assignments-other-file",
+      "expectedFindings": 2,
+      "actualFindings": 2,
+      "rules": [
+        "generic-api-key"
+      ],
+      "exitCode": 1,
+      "passed": true
+    },
+    {
+      "name": "same-line-extra-token",
+      "expectedFindings": 2,
+      "actualFindings": 2,
+      "rules": [
+        "generic-api-key"
+      ],
+      "exitCode": 1,
+      "passed": true
+    },
+    {
+      "name": "inherited-github-token-rule",
+      "expectedFindings": 1,
+      "actualFindings": 1,
+      "rules": [
+        "github-pat"
+      ],
+      "exitCode": 1,
+      "passed": true
+    }
+  ]
+}

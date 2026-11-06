@@ -1,0 +1,22 @@
+title = "Hulinger secret scanning"
+minVersion = "v8.30.1"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+  # Upstream ce39efde1c4e9929103a1df684d94fab6aa84bed, WndKeyBindings.java:399-400.
+  # These assign integer keyboard codes; neither line contains a credential literal.
+  # Original file SHA-256: 7ed7d21898ad6dbed2d0c4eacb59317db2ac6712e15d562487a85ddd44756ed5.
+  # Keep the default rule and require both this exact path and an entire assignment line.
+  [[rules.allowlists]]
+  description = "Two upstream integer keyboard binding assignments"
+  condition = "AND"
+  paths = ['''^third_party/shattered-pixel-dungeon-web/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndKeyBindings\.java$''']
+  regexTarget = "line"
+  regexes = [
+    '''^\n?[ \t]*this\.otherBoundKey1[ \t]*=[ \t]*otherBoundKey1;[ \t]*\r?$''',
+    '''^\n?[ \t]*this\.otherBoundKey2[ \t]*=[ \t]*otherBoundKey2;[ \t]*\r?$''',
+  ]
