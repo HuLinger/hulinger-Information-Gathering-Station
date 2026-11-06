@@ -9,3 +9,6 @@
 *.woff2 binary
 # Retain the exact GPL upstream blobs; their manifest validates original bytes.
 third_party/shattered-pixel-dungeon-web/** -text
+# Fixed original LibNCM sources and license texts are checked by SHA-256.
+integrations/conversion/ncmdump/vendor/** -text
+integrations/conversion/ncmdump/licenses/** -text

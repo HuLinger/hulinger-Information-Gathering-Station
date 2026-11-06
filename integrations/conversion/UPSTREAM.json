@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "retrievedAt": "2026-11-06",
+  "policy": "Fixed upstream artifacts; engine temporary files are separate from account-owned application storage.",
+  "supportServices": [
+    {
+      "id": "gateway",
+      "repository": "https://github.com/caddyserver/caddy",
+      "version": "v2.11.7",
+      "license": "Apache-2.0",
+      "image": "caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5",
+      "localModifications": ["Remove the Caddy binary's cap_net_bind_service file capability in a derived image; binary contents are unchanged."],
+      "integration": "Derived image built by gateway/Dockerfile plus a fixed-upstream configuration; runs non-root with all capabilities dropped and only publishes loopback ports."
+    }
+  ],
+  "engines": [
+    {
+      "id": "convertx",
+      "repository": "https://github.com/C4illin/ConvertX",
+      "version": "v0.20.0",
+      "commit": "42224e3f1f1ad0eb6e6d2bac661a5b3f2b2a2976",
+      "license": "AGPL-3.0",
+      "licenseUrl": "https://github.com/C4illin/ConvertX/blob/42224e3f1f1ad0eb6e6d2bac661a5b3f2b2a2976/LICENSE",
+      "image": "ghcr.io/c4illin/convertx:v0.20.0@sha256:6259e0c1e063120b1ddbc6937372a83be58182b2c9dc82264f58e100907b3e51",
+      "localModifications": [],
+      "integration": "Unmodified upstream service accessed through a server-side HTTP adapter."
+    },
+    {
+      "id": "transmute",
+      "repository": "https://github.com/transmute-app/transmute",
+      "version": "2.1.1",
+      "commit": "7de1265fbfbbfd073c5c9a65ed1f7e45bc3ca50c",
+      "license": "MIT",
+      "licenseUrl": "https://github.com/transmute-app/transmute/blob/7de1265fbfbbfd073c5c9a65ed1f7e45bc3ca50c/LICENSE",
+      "image": "ghcr.io/transmute-app/transmute:2.1.1@sha256:87b669d835d9e68bdbc4082ab061cb361cd3ecee69c14ccfa9a3814d326b6707",
+      "localModifications": [],
+      "integration": "Unmodified upstream service; a dedicated local account and API key are initialized through upstream endpoints."
+    },
+    {
+      "id": "stirling",
+      "repository": "https://github.com/Stirling-Tools/Stirling-PDF",
+      "version": "v3.3.0",
+      "commit": "7825214811d98fd3ec260bf315cd998ecb73b36b",
+      "license": "MIT core; excluded directories and bundled dependencies have separate terms",
+      "licenseUrl": "https://github.com/Stirling-Tools/Stirling-PDF/blob/7825214811d98fd3ec260bf315cd998ecb73b36b/LICENSE",
+      "artifact": {
+        "url": "https://github.com/Stirling-Tools/Stirling-PDF/releases/download/v3.3.0/Stirling-PDF-server.jar",
+        "bytes": 232311287,
+        "sha256": "5cb59682f93bd7d48312d36a87585ef2e8ca9ddfa64bc210dea6bd882925557c"
+      },
+      "baseImage": "stirlingtools/stirling-pdf-base:1.1.1@sha256:6b57e965506d61170851d6e85e4ff1a29fbc66db4fc4bf3d78c0e31fd1fb32ae",
+      "localModifications": [],
+      "integration": "The upstream core JAR is unchanged. This project adds a Dockerfile, artifact verification and process supervision; see stirling/README.md."
+    },
+    {
+      "id": "ncmdump",
+      "repository": "https://github.com/xiSage/ncmdump-net",
+      "version": "v2.0.1",
+      "commit": "8ccdd3534d5006d3f604d3790ada8778e8973e6f",
+      "license": "MIT; TagLibSharp 2.3.0 is LGPL-2.1-only",
+      "licenseUrl": "https://github.com/xiSage/ncmdump-net/blob/8ccdd3534d5006d3f604d3790ada8778e8973e6f/LICENSE.txt",
+      "sourceManifest": "ncmdump/upstream.json",
+      "localModifications": [],
+      "integration": "Unchanged LibNCM source with a local bounded HTTP gateway. See ncmdump/THIRD_PARTY.md and ncmdump/README.md."
+    }
+  ]
+}

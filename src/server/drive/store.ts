@@ -34,9 +34,11 @@ export class DriveStore {
   constructor(options: { database: Pool; uploadDatabase?: Pool; root: string; config?: Partial<DriveConfig> }) {
     this.database = options.database;
     this.uploadDatabase = options.uploadDatabase ?? options.database;
-    this.root = resolve(options.root);
+    // Turbopack traces path construction as well as fs reads. These paths refer
+    // to runtime storage, so instrumentation must not bundle their contents.
+    this.root = resolve(/* turbopackIgnore: true */ options.root);
     this.config = { ...readDriveConfig(), ...options.config };
-    const publicRoot = resolve('public');
+    const publicRoot = resolve(/* turbopackIgnore: true */ 'public');
     const publicRelative = relative(publicRoot, this.root);
     if (!publicRelative || (!publicRelative.startsWith(`..${sep}`) && publicRelative !== '..' && !isAbsolute(publicRelative))) {
       throw new Error('Drive storage must not be inside the public directory.');
@@ -72,26 +74,26 @@ export class DriveStore {
   private async storage(): Promise<string> {
     try {
       await mkdir(this.root, { recursive: true, mode: 0o700 });
-      const rootStat = await lstat(this.root);
+      const rootStat = await lstat(/* turbopackIgnore: true */ this.root);
       if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new DriveError(503, 'UNSAFE_STORAGE', '云盘根目录必须是独立的真实目录。');
-      const actual = await realpath(this.root);
-      const actualRoot = resolve(actual);
+      const actual = await realpath(/* turbopackIgnore: true */ this.root);
+      const actualRoot = resolve(/* turbopackIgnore: true */ actual);
       if ((process.platform === 'win32' ? actualRoot.toLowerCase() !== this.root.toLowerCase() : actualRoot !== this.root)) throw new DriveError(503, 'UNSAFE_STORAGE', '云盘路径不能经过符号链接。');
-      const directory = join(this.root, 'objects');
+      const directory = join(/* turbopackIgnore: true */ this.root, 'objects');
       await mkdir(directory, { mode: 0o700 }).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EEXIST') throw error; });
-      const details = await lstat(directory);
+      const details = await lstat(/* turbopackIgnore: true */ directory);
       if (!details.isDirectory() || details.isSymbolicLink()) throw new DriveError(503, 'UNSAFE_STORAGE', '云盘对象目录不能使用符号链接。');
       return directory;
     } catch (error) { return storageError(error); }
   }
 
-  private async path(id: string) { return join(await this.storage(), `${validId(id)}.bin`); }
+  private async path(id: string) { return join(/* turbopackIgnore: true */ await this.storage(), `${validId(id)}.bin`); }
 
   private async fileHandle(id: string, writable = false): Promise<FileHandle> {
     const path = await this.path(id);
-    const entry = await lstat(path);
+    const entry = await lstat(/* turbopackIgnore: true */ path);
     if (!entry.isFile() || entry.isSymbolicLink() || entry.nlink !== 1) throw new DriveError(503, 'UNSAFE_STORAGE', '存储对象类型不安全。');
-    const handle = await open(path, (writable ? constants.O_RDWR : constants.O_RDONLY) | (constants.O_NOFOLLOW ?? 0));
+    const handle = await open(/* turbopackIgnore: true */ path, (writable ? constants.O_RDWR : constants.O_RDONLY) | (constants.O_NOFOLLOW ?? 0));
     const actual = await handle.stat();
     // Windows lstat can report dev=0 while fstat reports the volume ID for the same file.
     const deviceChanged = actual.dev !== entry.dev && !(process.platform === 'win32' && entry.dev === 0);
@@ -127,7 +129,7 @@ export class DriveStore {
     }
     // Sample free space last: writes continuing after the allocation samples can
     // only make our reservation conservative, never promise the same space twice.
-    const disk = await statfs(await this.storage(), { bigint: true });
+    const disk = await statfs(/* turbopackIgnore: true */ await this.storage(), { bigint: true });
     const maximum = BigInt(Number.MAX_SAFE_INTEGER);
     const bytes = disk.bavail * disk.bsize;
     const freeBytes = Number(bytes > maximum ? maximum : bytes);
@@ -179,7 +181,7 @@ export class DriveStore {
       if (input.size > capacity.availableBytes) throw new DriveError(507, 'STORAGE_FULL', '可用空间不足，已扣除其他上传任务预留空间。请清理文件后重试。');
       const id = randomUUID();
       const path = await this.path(id);
-      const handle = await open(path, constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | (constants.O_NOFOLLOW ?? 0), 0o600);
+      const handle = await open(/* turbopackIgnore: true */ path, constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | (constants.O_NOFOLLOW ?? 0), 0o600);
       try { await handle.truncate(input.size); await handle.sync(); } finally { await handle.close(); }
       // A rolled-back insert may leave only a UUID object. Cleanup removes old unreferenced objects.
       await client.query(`INSERT INTO drive_files(id,owner_id,name,size,chunk_size,chunk_count,last_modified,fingerprint)
@@ -276,7 +278,7 @@ export class DriveStore {
       } finally { await handle.close(); }
       // Persist the directory entry on POSIX before metadata can expose the immutable object.
       if (process.platform !== 'win32') {
-        const directory = await open(await this.storage(), constants.O_RDONLY);
+        const directory = await open(/* turbopackIgnore: true */ await this.storage(), constants.O_RDONLY);
         try { await directory.sync(); } finally { await directory.close(); }
       }
       await client.query("UPDATE drive_files SET status='ready',completed_at=now(),updated_at=now() WHERE id=$1", [id]);
@@ -399,10 +401,11 @@ export class DriveStore {
     let orphaned = 0;
     const directory = await this.storage();
     const cutoff = Date.now() - 24 * 60 * 60_000;
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
+    // Uploaded files exist only at runtime; never trace them into a deployment.
+    for (const entry of await readdir(/* turbopackIgnore: true */ directory, { withFileTypes: true })) {
       if (!/^[a-f0-9-]{36}\.bin$/.test(entry.name) || !entry.isFile()) continue;
-      const path = join(directory, entry.name);
-      const details = await lstat(path);
+      const path = join(/* turbopackIgnore: true */ directory, entry.name);
+      const details = await lstat(/* turbopackIgnore: true */ path);
       if (details.mtimeMs >= cutoff || details.isSymbolicLink()) continue;
       const id = validId(entry.name.slice(0, -4));
       const present = await this.database.query('SELECT 1 FROM drive_files WHERE id=$1', [id]);
@@ -417,8 +420,8 @@ export class DriveStore {
     this.storageProbe = (async () => {
       // fs.access does not evaluate Windows ACLs. Exercise the service account's
       // real create/read/write/delete permissions without touching stored objects.
-      const path = join(await this.storage(), `.probe-${randomUUID()}`);
-      const handle = await open(path, constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | (constants.O_NOFOLLOW ?? 0), 0o600);
+      const path = join(/* turbopackIgnore: true */ await this.storage(), `.probe-${randomUUID()}`);
+      const handle = await open(/* turbopackIgnore: true */ path, constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | (constants.O_NOFOLLOW ?? 0), 0o600);
       try {
         await handle.write(Buffer.from([0x48]), 0, 1, 0);
         const data = Buffer.alloc(1);

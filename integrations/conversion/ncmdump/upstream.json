@@ -1,0 +1,31 @@
+{
+  "repository": "https://github.com/xiSage/ncmdump-net",
+  "version": "v2.0.1",
+  "commit": "8ccdd3534d5006d3f604d3790ada8778e8973e6f",
+  "license": "MIT",
+  "retrievedAt": "2026-11-06",
+  "localModifications": [],
+  "additionalOriginalFiles": {
+    "licenses/TagLibSharp.LGPL-2.1.txt": {
+      "source": "https://raw.githubusercontent.com/mono/taglib-sharp/b5ae84f2e84087bf160bb0471420200dd2b5d809/COPYING",
+      "sha256": "6095e9ffa777dd22839f7801aa845b31c9ed07f3d6bf8a26dc5d2dec8ccc0ef3"
+    }
+  },
+  "sha256": {
+    "build/Roots.xml": "e8607de778935a138ecd82aff885a7fe3e2a4240bc3f37b901a8eee8abb79e59",
+    "LibNCM/KeyBoxCipher.cs": "3ac01f3f98a59212613f3b696c6c7934f78d6d37dba50328065e3c89c8e5a6c7",
+    "LibNCM/Properties/launchSettings.json": "92d2f71578654327aa528003dc458084284f7f67d90365ecc6809d4e11109b0d",
+    "LibNCM/NcmAudioStream.cs": "f2b4dfcc4e769c2174896f93180d6a2b935de6a8f63fb926ede44f3351790534",
+    "LibNCM/AesEcbPure.cs": "b28d00139ff5b01a35a49b668479f8456124e1509a38193895907e6c1f5d869e",
+    "LibNCM/NcmHeaderParser.cs": "9c782b9d0f160259a222c5e8672c3e529c6a72000dc14e5e48ebcdd52579738e",
+    "LibNCM/NcmProcessor.cs": "201f4c99d1cde4a3e719409d8b746f98454aba0984ea44ea5ac044be41a5a5d0",
+    "LibNCM/NeteaseCloudMusicMetadata.cs": "4434cc7501361c7e9e7154930645718574f96265da9a5836dea4c4ccbd7ab08b",
+    "LibNCM/ICoverArtProvider.cs": "8109aebb7c2cf38b4919042ada35efd3c28249b29f6af1d983fe88cc16331dbc",
+    "LibNCM/LibNCM.csproj": "dd31bdd9615d80c297d8aee53f80cc68e6efd581590df5518d20f478aa01f0a0",
+    "Directory.Packages.props": "ad4a0e5d941c953672169f1c008b162ce711936f6c54bba4d2caece276cc729f",
+    "LICENSE.txt": "4d4e34154bcce242c431d0c8e4e87cecc7a1f0cd4914f45f5d656fc7883a00fb",
+    "LibNCM/NcmFile.cs": "b2d4bc6420435e0640feb2eedd038c868f7178e1658112a2a569c83bce37cf74",
+    "LibNCM/NcmHeader.cs": "9508b2fdd8e3ad0630620d67d140f3ad98a91847a333bc61d045fa6801ab5d63",
+    "LibNCM/NcmExceptions.cs": "11f7af874a6360aee608b817b06e2cecb34267bf9d8d11363161c207b9610aad"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-06",
+  "results": [
+    {
+      "name": "exact public source checksum",
+      "exitCode": 0
+    },
+    {
+      "name": "different value is not exempt",
+      "exitCode": 3
+    },
+    {
+      "name": "other credential in same manifest is not exempt",
+      "exitCode": 3
+    }
+  ]
+}

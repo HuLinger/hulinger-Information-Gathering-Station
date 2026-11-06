@@ -1,0 +1,27 @@
+# Start and initialize the independent hulinger-conversion bundle first.
+# This overlay only connects the existing site processes to its internal network.
+services:
+  web:
+    networks:
+      - conversion
+    environment:
+      CONVERTX_URL: http://convertx:3000
+      TRANSMUTE_URL: http://transmute:3313
+      TRANSMUTE_API_KEY: ${TRANSMUTE_API_KEY:?Initialize Transmute with scripts/setup-converters.mjs first}
+      STIRLING_PDF_URL: http://stirling:8080
+      NCMDUMP_URL: http://ncmdump:8080
+
+  worker:
+    networks:
+      - conversion
+    environment:
+      CONVERTX_URL: http://convertx:3000
+      TRANSMUTE_URL: http://transmute:3313
+      TRANSMUTE_API_KEY: ${TRANSMUTE_API_KEY:?Initialize Transmute with scripts/setup-converters.mjs first}
+      STIRLING_PDF_URL: http://stirling:8080
+      NCMDUMP_URL: http://ncmdump:8080
+
+networks:
+  conversion:
+    external: true
+    name: ${CONVERSION_NETWORK_NAME:-hulinger-conversion_conversion}

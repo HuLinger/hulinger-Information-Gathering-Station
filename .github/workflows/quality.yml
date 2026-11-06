@@ -164,6 +164,51 @@ jobs:
           node scripts/check-commit-message.mjs --pr-title
           node scripts/check-branch.mjs --pr
 
+  conversion-engines:
+    name: Conversion engines
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Check original NCM sources
+        run: node integrations/conversion/ncmdump/verify-upstream.mjs
+      - name: Prepare private isolated engine configuration
+        run: node -- scripts/setup-converters.mjs
+      - name: Build, start and initialize real engines
+        run: node -- scripts/setup-converters.mjs --build --start --wait-seconds 600
+      - name: Verify real conversions and corrupt input handling
+        env:
+          CONVERSION_SMOKE_ENV_FILE: .env.conversion.runtime
+        run: npx tsx scripts/verify-conversion-engines.ts
+      - name: Verify restart and retained credentials
+        run: |
+          cp .env.conversion .env.conversion.before
+          docker compose --env-file .env.conversion -f integrations/conversion/compose.yml restart
+          docker compose --env-file .env.conversion -f integrations/conversion/compose.yml up -d --no-build --wait --wait-timeout 300
+          node -- scripts/setup-converters.mjs --initialize
+          cmp .env.conversion .env.conversion.before
+      - name: Verify conversions after restart
+        env:
+          CONVERSION_SMOKE_ENV_FILE: .env.conversion.runtime
+        run: npx tsx scripts/verify-conversion-engines.ts
+      - name: Engine status on failure
+        if: failure()
+        run: |
+          test ! -f .env.conversion || docker compose --env-file .env.conversion -f integrations/conversion/compose.yml ps -a
+          test ! -f .env.conversion || docker compose --env-file .env.conversion -f integrations/conversion/compose.yml logs --tail 60 gateway
+      - name: Remove isolated engine containers
+        if: always()
+        run: test ! -f .env.conversion || docker compose --env-file .env.conversion -f integrations/conversion/compose.yml down --volumes
+
   windows-update:
     name: Windows update safety
     runs-on: windows-latest

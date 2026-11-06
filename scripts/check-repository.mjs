@@ -68,6 +68,21 @@ try {
       for (const file of modified) if (!upstreamFiles.has(`${vendor}/${file}`)) throw new Error(`Modified upstream file not in manifest: ${file}`);
     } catch (error) { errors.push(`Invalid upstream provenance: ${error.message}`); }
   }
+  const ncm = 'integrations/conversion/ncmdump';
+  if (fileSet.has(`${ncm}/upstream.json`)) {
+    try {
+      const manifest = JSON.parse(readBytes(`${ncm}/upstream.json`));
+      if (manifest.commit !== '8ccdd3534d5006d3f604d3790ada8778e8973e6f' || manifest.localModifications.length) throw new Error('Unexpected LibNCM source version or modifications');
+      const originals = [...Object.entries(manifest.sha256).map(([file, sha256]) => [`vendor/${file}`, sha256]),
+        ...Object.entries(manifest.additionalOriginalFiles).map(([file, source]) => [file, source.sha256])];
+      for (const [path, sha256] of originals) {
+        const file = `${ncm}/${path}`;
+        if (path.split('/').some(part => !part || part === '.' || part === '..') || !fileSet.has(file) || !/^[a-f0-9]{64}$/.test(sha256)) throw new Error(`Missing or invalid original file: ${path}`);
+        if (createHash('sha256').update(readBytes(file)).digest('hex') !== sha256) errors.push(`Unrecorded upstream modification: ${file}`);
+        upstreamFiles.add(file);
+      }
+    } catch (error) { errors.push(`Invalid NCM provenance: ${error.message}`); }
+  }
   const texts = new Map();
   const indexEntries = git(['ls-files', '--stage', '-z']).split('\0').filter(Boolean);
   for (const entry of indexEntries) {

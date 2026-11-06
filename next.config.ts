@@ -3,6 +3,8 @@ import { GAME_FRAME_CSP } from './src/server/games/security';
 const config: NextConfig = {
   devIndicators: false,
   output: 'standalone', poweredByHeader: false, agentRules: false,
+  // Runtime storage and operator credentials are never application artifacts.
+  outputFileTracingExcludes: { '**': ['./data/**', './.tmp/**', './backups/**', './uploads/**', './exports/**', './.env', './.env.*', './.deploy/**'] },
   async headers() {
     return [{ source: '/:path*', headers: [
       {key: 'X-Content-Type-Options', value: 'nosniff'},

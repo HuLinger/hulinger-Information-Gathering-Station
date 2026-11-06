@@ -1,0 +1,25 @@
+{
+	admin off
+	auto_https off
+}
+
+:8090 {
+	respond /__gateway_health "ok" 200
+	respond 404
+}
+
+:8091 {
+	reverse_proxy convertx:3000
+}
+
+:8092 {
+	reverse_proxy transmute:3313
+}
+
+:8093 {
+	reverse_proxy stirling:8080
+}
+
+:8094 {
+	reverse_proxy ncmdump:8080
+}

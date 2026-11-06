@@ -20,6 +20,7 @@
 - 技术栈采用 [ADR 0003](docs/adr/0003-self-hosted-architecture.md) 的 Next.js、Ant Design、PostgreSQL、Better Auth 与独立 worker，按 Docker Compose 自托管。改变方案仍须补充 ADR，明确维护、备份、迁移和费用。
 - 不将生产数据、附件、备份、密码、访问令牌或真实 `.env` 放入 Git；遵守 [安全规范](SECURITY.md)。
 - `third_party` 游戏保留固定上游原始字节和 GPL 许可；来源清单校验原文件 SHA-256，明确记录本地修改。上游既有格式不按本站格式重写，新增桥接与构建文件仍遵循本站检查，密钥与私有文件门禁不豁免。
+- 0.4.0 格式转换遵循 [ADR 0007](docs/adr/0007-private-format-conversion.md)：四引擎只通过服务端访问，24 小时临时存储按账号独立。`integrations/conversion` 固定上游版本、镜像/JAR 摘要及 LibNCM 原始文件清单；原文件保留字节与许可，本站适配代码正常检查，不把模拟转换冒充真实引擎验证。
 - 不把样例数据、模拟响应、规范检查成功表述为真实业务完成或已达到上线条件。
 - 小步提交。不得用跳过 hook、降低检查阈值、删除失败测试来掩盖问题。
 

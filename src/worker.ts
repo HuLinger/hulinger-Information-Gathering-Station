@@ -2,6 +2,8 @@ import { pool, query, accountQuery, activeAccountIds, allAccountIds, withAccount
 import { processPendingExports, expireExports } from './server/exports';
 import { collectSource, cleanupTrash, ensureSources, enqueueDueSources, getBoss, QUEUES } from './server/collector';
 import { closeDrive, getDrive } from './server/drive/runtime';
+import { startConversionWorker } from './server/conversion/runtime';
+import { closeConversionConnections } from './server/conversion/connections';
 
 async function main(): Promise<void> {
   await getDrive().checkStorage();
@@ -32,11 +34,14 @@ async function main(): Promise<void> {
   await boss.schedule(QUEUES.tick, '* * * * *', {}, { tz: 'UTC' });
   await boss.schedule(QUEUES.cleanup, '15 19 * * *', {}, { tz: 'UTC' });
   await tick();
+  const conversions = startConversionWorker();
   console.log('Collector worker ready. Sources run only after owner enables them.');
   let stopping = false;
   const stop = async () => {
     if (stopping) return;
     stopping = true;
+    await conversions.stop();
+    await closeConversionConnections();
     await boss.stop({ graceful: true, timeout: 30_000 });
     await closeDrive();
     await pool.end();

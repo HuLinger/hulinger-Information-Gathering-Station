@@ -51,3 +51,9 @@ compose.override.yml
 compose.override.yaml
 .deploy/
 .games/
+
+# .NET integration outputs; preserve the fixed upstream build metadata.
+integrations/conversion/ncmdump/**/bin/
+integrations/conversion/ncmdump/**/obj/
+!integrations/conversion/ncmdump/vendor/build/
+!integrations/conversion/ncmdump/vendor/build/Roots.xml

@@ -2,6 +2,6 @@ import { query } from '../../../server/db';
 import { getDrive } from '../../../server/drive/runtime';
 export const dynamic='force-dynamic';
 export async function GET(){
-  try{await Promise.all([query('SELECT id FROM events LIMIT 1'),query('SELECT id FROM drive_files LIMIT 1'),getDrive().checkStorage()]);return Response.json({status:'ready'},{headers:{'Cache-Control':'no-store'}});}
+  try{await Promise.all([query('SELECT id FROM events LIMIT 1'),query('SELECT id FROM drive_files LIMIT 1'),query('SELECT id FROM conversion_jobs LIMIT 1'),getDrive().checkStorage()]);return Response.json({status:'ready'},{headers:{'Cache-Control':'no-store'}});}
   catch{return Response.json({status:'unavailable'},{status:503,headers:{'Cache-Control':'no-store'}});}
 }
