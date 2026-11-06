@@ -1,10 +1,10 @@
-import { assertSameOrigin, requireOwner } from '../authorize';
+import { assertSameOrigin, requireUser } from '../authorize';
 import { failure, privateHeaders } from '../http';
 import { DriveError } from './errors';
 
 export async function driveRequest(request: Request, handle: (ownerId: string) => Promise<Response>): Promise<Response> {
   try {
-    const owner = await requireOwner(request.headers);
+    const owner = await requireUser(request.headers);
     assertSameOrigin(request);
     return await handle(owner.id);
   } catch (error) {

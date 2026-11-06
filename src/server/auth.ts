@@ -1,5 +1,5 @@
 import { betterAuth } from 'better-auth';
-import { twoFactor } from 'better-auth/plugins';
+import { twoFactor, username } from 'better-auth/plugins';
 import type { Pool } from 'pg';
 import { pool } from './db';
 
@@ -58,6 +58,7 @@ export function createAuth(database: Pool = pool, env: NodeJS.ProcessEnv = proce
       max: 60,
       customRules: {
         '/sign-in/email': { window: 60, max: 5 },
+        '/sign-in/username': { window: 60, max: 5 },
         '/two-factor/*': { window: 60, max: 10 },
       },
     },
@@ -67,7 +68,12 @@ export function createAuth(database: Pool = pool, env: NodeJS.ProcessEnv = proce
       defaultCookieAttributes: { httpOnly: true, sameSite: 'lax', path: '/' },
       ipAddress: { ipAddressHeaders: ['x-forwarded-for'] },
     },
-    plugins: [twoFactor({
+    plugins: [username({
+      displayUsername: false,
+      minUsernameLength: 3,
+      maxUsernameLength: 32,
+      usernameValidator: (value) => /^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,31}$/.test(value),
+    }), twoFactor({
       issuer: 'Hulinger',
       skipVerificationOnEnable: false,
       accountLockout: { enabled: true, maxFailedAttempts: 5, durationSeconds: 900 },

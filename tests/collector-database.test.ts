@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { pool, query, transaction } from '../src/server/db';
+import { pool, accountQuery as query, accountTransaction as transaction, withAccountScope } from '../src/server/db';
 import { persistItem, cleanupTrash } from '../src/server/collector/storage';
 import { DomainError, executeDomain } from '../src/server/domain';
 import type { CollectedItem } from '../src/server/collector/domain';
@@ -9,6 +9,9 @@ import type { HubEvent } from '../src/shared/contracts';
 
 test('真实PostgreSQL：幂等、人工覆盖、修订、拆分保护及删除防复活', { skip: process.env.COLLECTOR_DATABASE_TEST !== '1', timeout: 30_000 }, async () => {
   assert.match(process.env.DATABASE_URL ?? '', /(?:localhost|127\.0\.0\.1).*\/(?:[a-z0-9_]*test)(?:\?|$)/iu, 'Integration tests require an explicit isolated local test database.');
+  const accountId=`collector-${randomUUID()}`;
+  await pool.query('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES($1,$1,$2,true,now(),now())',[accountId,`${accountId}@example.test`]);
+  return withAccountScope(accountId,async()=>{
   const prefix = `collector-test-${randomUUID()}`;
   const sourceA = { id: `${prefix}-a`, name: 'Synthetic Collector A' };
   const sourceB = { id: `${prefix}-b`, name: 'Synthetic Collector B' };
@@ -118,6 +121,8 @@ test('真实PostgreSQL：幂等、人工覆盖、修订、拆分保护及删除�
     await query('DELETE FROM source_records WHERE source_id=ANY($1)', [[sourceA.id, sourceB.id]]);
     await query('DELETE FROM events WHERE id=ANY($1)', [ids]);
     await query('DELETE FROM sources WHERE id=ANY($1)', [[sourceA.id, sourceB.id]]);
+    await pool.query('DELETE FROM "user" WHERE id=$1',[accountId]);
     await pool.end();
   }
+  });
 });

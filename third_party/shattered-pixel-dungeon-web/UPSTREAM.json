@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/glassesmonkey/shattered-pixel-dungeon-web",
+  "branch": "main",
+  "commit": "ce39efde1c4e9929103a1df684d94fab6aa84bed",
+  "gameVersion": "3.3.8-WEB",
+  "license": "GPL-3.0-or-later",
+  "importedAt": "2026-11-06",
+  "originalTrackedFiles": 1892,
+  "originalTrackedBytes": 84331574,
+  "localChanges": [
+    "WebLauncher.java: account/run-specific IndexedDB and preference namespaces",
+    "WebShatteredPixelDungeon.java: completed-save events, host pause/save controls, and defer canvas resize until a stable turn",
+    "web/build.gradle: working directory for isolated Web build",
+    "web-build/build.gradle and web-build/settings.gradle: isolated browser build",
+    "Host integration sources: src/game/shattered-pixel-dungeon and scripts/build-game.mjs"
+  ],
+  "localModifiedFiles": [
+    "web/build.gradle",
+    "web/src/main/java/com/shatteredpixel/shatteredpixeldungeon/web/WebLauncher.java",
+    "web/src/main/java/com/shatteredpixel/shatteredpixeldungeon/web/WebShatteredPixelDungeon.java"
+  ]
+}

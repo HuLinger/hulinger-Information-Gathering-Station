@@ -1,5 +1,5 @@
 import { randomUUID, createHash } from 'node:crypto';
-import { query, transaction } from '../db';
+import { accountQuery as query, accountTransaction as transaction } from '../db';
 import type { Source, Entity } from '../../shared/contracts';
 import { CollectorError, safeFetch } from './network';
 import { githubConfig, growth, parseFeed, plainText, publicLink, sourcePreset, type CollectedItem, type Snapshot } from './domain';
@@ -22,10 +22,10 @@ interface Release { id: number; name: string; tag_name: string; html_url: string
 
 function counter(): Counts { return { added: 0, updated: 0, skipped: 0 }; }
 async function cursorFor(sourceId: string): Promise<Cursor> {
-  return (await query<{ value: Cursor }>('SELECT value FROM app_settings WHERE key=$1', [`collector:${sourceId}`]))[0]?.value ?? {};
+  return (await query<{ value: Cursor }>('SELECT value FROM account_settings WHERE key=$1', [`collector:${sourceId}`]))[0]?.value ?? {};
 }
 async function saveCursor(sourceId: string, value: Cursor): Promise<void> {
-  await query(`INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`, [`collector:${sourceId}`, JSON.stringify(value)]);
+  await query(`INSERT INTO account_settings(key,value) VALUES($1,$2) ON CONFLICT(owner_id,key) DO UPDATE SET value=EXCLUDED.value`, [`collector:${sourceId}`, JSON.stringify(value)]);
 }
 function githubUrl(path: string, params: Record<string, string> = {}): string {
   const url = new URL(path, 'https://api.github.com');
@@ -107,7 +107,7 @@ async function updateRepository(repo: Repository, source: Source, cursor: Cursor
       sourceId: source.id, sourceUpdatedAt: observedAt, scope: cursor.scope, sampled: true, collectionError: null,
     };
     await client.query(`INSERT INTO entities(id,kind,name,url,data) VALUES($1,'project',$2,$3,$4)
-      ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,url=EXCLUDED.url,
+      ON CONFLICT(owner_id,id) DO UPDATE SET name=EXCLUDED.name,url=EXCLUDED.url,
       data=entities.data || EXCLUDED.data || jsonb_build_object('firstDiscoveredAt',COALESCE(entities.data->'firstDiscoveredAt',EXCLUDED.data->'firstDiscoveredAt')),
       revision=entities.revision+1`,
     [entityId, repo.full_name, repo.html_url, JSON.stringify(data)]);

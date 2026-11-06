@@ -102,12 +102,12 @@ export class DriveStore {
     return handle;
   }
 
-  private async capacity(client: Pool | PoolClient): Promise<DriveListing['capacity']> {
+  private async capacity(client: Pool | PoolClient, ownerId: string): Promise<DriveListing['capacity']> {
     const [totals, pending] = await Promise.all([
       client.query<{ used: string; reserved: string; total: string }>(`SELECT
         COALESCE(sum(size) FILTER(WHERE status<>'uploading'),0)::text AS used,
         COALESCE(sum(GREATEST(0,size-COALESCE((SELECT sum(bytes) FROM drive_parts p WHERE p.file_id=f.id),0))) FILTER(WHERE status='uploading'),0)::text AS reserved,
-        COALESCE(sum(size),0)::text AS total FROM drive_files f`),
+        COALESCE(sum(size),0)::text AS total FROM drive_files f WHERE owner_id=$1`, [ownerId]),
       client.query<{ id: string; size: string; uploaded: string }>(`SELECT id,size,
         COALESCE((SELECT sum(bytes) FROM drive_parts p WHERE p.file_id=f.id),0)::text AS uploaded
         FROM drive_files f WHERE status='uploading'`),
@@ -150,7 +150,7 @@ export class DriveStore {
       this.database.query<FileRow>(`SELECT ${metadata} FROM drive_files f WHERE ${filter} ORDER BY f.created_at DESC,f.id LIMIT 20 OFFSET $4`, [...values, (page - 1) * 20]),
       this.database.query<{ count: string }>(`SELECT count(*) FROM drive_files f WHERE ${filter}`, values),
       this.database.query<FileRow>(`SELECT ${metadata} FROM drive_files f WHERE f.owner_id=$1 AND f.status='uploading' ORDER BY f.created_at DESC LIMIT 50`, [ownerId]),
-      this.capacity(this.database),
+      this.capacity(this.database, ownerId),
     ]);
     const { chunkSize, maxFileBytes, defaultParallel, maxParallel, uploadRetentionDays, trashRetentionDays } = this.config;
     return { files: files.rows.map((row) => this.map(row)), uploads: uploads.rows.map((row) => this.map(row)), total: Number(count.rows[0].count), page, capacity,
@@ -175,7 +175,7 @@ export class DriveStore {
       if (existing.rows[0]) return existing.rows[0].id;
       const count = await client.query<{ count: string }>("SELECT count(*) FROM drive_files WHERE owner_id=$1 AND status='uploading'", [ownerId]);
       if (Number(count.rows[0].count) >= this.config.maxPendingUploads) throw new DriveError(429, 'TOO_MANY_UPLOADS', '待完成上传过多，请先继续或取消已有任务。');
-      const capacity = await this.capacity(client);
+      const capacity = await this.capacity(client, ownerId);
       if (input.size > capacity.availableBytes) throw new DriveError(507, 'STORAGE_FULL', '可用空间不足，已扣除其他上传任务预留空间。请清理文件后重试。');
       const id = randomUUID();
       const path = await this.path(id);

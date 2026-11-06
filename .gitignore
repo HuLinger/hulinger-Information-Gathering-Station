@@ -50,3 +50,4 @@ Desktop.ini
 compose.override.yml
 compose.override.yaml
 .deploy/
+.games/

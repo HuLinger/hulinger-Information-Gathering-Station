@@ -49,3 +49,20 @@ export async function requireOwner(headers: Headers): Promise<{ id: string }> {
   if (!assurance) throw new AuthError(401, 'MFA_REQUIRED', '会话需要重新进行双重验证，请重新登录。');
   return { id: assurance.user_id };
 }
+
+export async function requireUser(headers: Headers): Promise<{ id: string; role: 'owner' | 'member' }> {
+  const session = await getAuth().api.getSession({ headers });
+  if (!session) throw new AuthError(401, 'UNAUTHENTICATED', '请先登录。');
+  if (session.user.id === await ownerId()) return { ...await requireOwner(headers), role: 'owner' };
+  const [member] = await query<{ user_id: string }>(`
+    UPDATE auth_session_assurance assurance SET last_seen_at=now()
+    FROM member_accounts member
+    WHERE assurance.session_id=$1 AND assurance.user_id=$2
+      AND member.user_id=assurance.user_id AND member.disabled=false
+      AND assurance.verified_at > now() - interval '24 hours'
+      AND assurance.last_seen_at > now() - interval '2 hours'
+    RETURNING assurance.user_id
+  `, [session.session.id, session.user.id]);
+  if (!member) throw new AuthError(401, 'UNAUTHENTICATED', '登录已失效，请重新登录。');
+  return { id: member.user_id, role: 'member' };
+}

@@ -7,7 +7,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM dependencies AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jdk-headless ca-certificates tar && rm -rf /var/lib/apt/lists/*
 COPY . .
+COPY docs/development/shattered-pixel-dungeon.md ./docs/development/shattered-pixel-dungeon.md
 RUN npm run build
 
 FROM base AS production-dependencies
@@ -20,6 +22,7 @@ COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_m
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder --chown=node:node /app/public ./public
+COPY --from=builder --chown=node:node /app/.games ./.games
 COPY --from=builder --chown=node:node /app/src ./src
 COPY --from=builder --chown=node:node /app/scripts ./scripts
 COPY --from=builder --chown=node:node /app/migrations ./migrations

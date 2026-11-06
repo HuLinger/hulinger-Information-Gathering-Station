@@ -1,15 +1,18 @@
-import { test, after } from 'node:test';
+import { test, after, before, type TestOptions } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { pool,query } from '../src/server/db';
+import { pool,accountQuery as query,withAccountScope } from '../src/server/db';
 import { executeDomain,getDetail,listHub,defaultPersonal } from '../src/server/domain';
 import type { HubEvent } from '../src/shared/contracts';
 import { createExport,processPendingExports } from '../src/server/exports';
 
 const enabled=process.env.RUN_DB_TESTS==='1';
 if(enabled&&!new URL(process.env.DATABASE_URL!).pathname.endsWith('_test'))throw new Error('Integration tests require an explicitly named *_test database.');
-after(async()=>{await pool.end();});
-test('database transactions retain personal state, prevent stale edits, export relationships, and honor deletion',{skip:!enabled},async()=>{
+const testAccount=`domain-${randomUUID()}`;
+before(async()=>{if(enabled)await pool.query('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES($1,$1,$2,true,now(),now())',[testAccount,`${testAccount}@example.test`]);});
+after(async()=>{if(enabled)await pool.query('DELETE FROM "user" WHERE id=$1',[testAccount]);await pool.end();});
+const scopedTest=(name:string,options:TestOptions,fn:()=>Promise<void>)=>test(name,options,()=>withAccountScope(testAccount,fn));
+scopedTest('database transactions retain personal state, prevent stale edits, export relationships, and honor deletion',{skip:!enabled},async()=>{
   const prefix=`test-${randomUUID()}`;const eventIds:string[]=[];let exportId:string|undefined;
   const create=async(n:number)=>{
     const result=await executeDomain({action:'create',title:`${prefix} ${n}`,summary:'Synthetic source',kind:'model',url:`https://example.com/${prefix}/${n}`,tags:['测试'],note:`备注${n}`}) as {event:HubEvent};eventIds.push(result.event.id);return result.event;
@@ -38,7 +41,7 @@ test('database transactions retain personal state, prevent stale edits, export r
     await assert.rejects(()=>getDetail(first.id),{status:404});
   }finally {await query('DELETE FROM events WHERE id=ANY($1::text[])',[eventIds]);if(exportId)await query('DELETE FROM export_jobs WHERE id=$1',[exportId]);}
 });
-test('10,000 synthetic records preserve bounded search and list latency',{skip:!enabled},async()=>{
+scopedTest('10,000 synthetic records preserve bounded search and list latency',{skip:!enabled},async()=>{
   const prefix=`budget-${randomUUID()}`;
   try {
     await query(`INSERT INTO events(id,title,summary,kind,url,source_name) SELECT $1||'-'||g,$1||' 人工智能资料 '||g,'合成性能验收内容','tool','https://example.com/'||$1||'/'||g,'测试来源' FROM generate_series(1,10000) g`,[prefix]);
@@ -48,7 +51,7 @@ test('10,000 synthetic records preserve bounded search and list latency',{skip:!
   }finally {await query('DELETE FROM events WHERE id LIKE $1',[`${prefix}-%`]);}
 });
 
-test('undo merge takes all event locks in canonical order',{skip:!enabled},async()=>{
+scopedTest('undo merge takes all event locks in canonical order',{skip:!enabled},async()=>{
   const prefix=`lock-${randomUUID()}`;const events:HubEvent[]=[];const holder=await pool.connect();let undo:Promise<unknown>|undefined;
   try {
     for(let i=0;i<2;i++)events.push((await executeDomain({action:'create',title:prefix,summary:'',kind:'model',url:`https://example.com/${prefix}/${i}`,tags:[],note:''}) as {event:HubEvent}).event);

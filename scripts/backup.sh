@@ -66,6 +66,13 @@ done
 if [[ "$has_drive" == t ]]; then
   "${compose[@]}" exec -T db psql -U postgres -d hulinger -At -F $'\t' -v ON_ERROR_STOP=1 -c "SELECT 'drive_files',count(*) FROM drive_files UNION ALL SELECT 'drive_parts',count(*) FROM drive_parts;" >>"$staging/counts.tsv"
 fi
+for account_table in member_accounts login_events account_management_events account_settings game_saves; do
+  has_table="$("${compose[@]}" exec -T db psql -U postgres -d hulinger -At -v ON_ERROR_STOP=1 -c "SELECT to_regclass('public.$account_table') IS NOT NULL;")"
+  if [[ "$has_table" == t ]]; then
+    "${compose[@]}" exec -T db psql -U postgres -d hulinger -At -F $'\t' -v ON_ERROR_STOP=1 -c "SELECT '$account_table',count(*) FROM $account_table;" >>"$staging/counts.tsv"
+  fi
+done
+
 git -c safe.directory="$HUB_DIR" -C "$HUB_DIR" rev-parse HEAD >"$staging/release.txt"
 "${compose[@]}" images >>"$staging/release.txt"
 

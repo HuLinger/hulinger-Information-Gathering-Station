@@ -24,6 +24,7 @@ async function runtimeRoles(client: PoolClient, roles: RuntimeRoles) {
     if (!(await client.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [name])).rowCount) {
       await client.query(`CREATE ROLE "${name}" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION`);
     }
+    await client.query(`ALTER ROLE "${name}" NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`);
     const { rows } = await client.query<{ command: string }>("SELECT format('ALTER ROLE %I PASSWORD %L', $1::text, $2::text) AS command", [name, password]);
     await client.query(rows[0].command);
   }
@@ -33,19 +34,26 @@ async function runtimeRoles(client: PoolClient, roles: RuntimeRoles) {
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${app};
     GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${app};
     REVOKE ALL ON hub_migrations, auth_admin_audit FROM ${app};
+    REVOKE ALL ON login_events, account_management_events FROM ${app};
+    GRANT SELECT, INSERT ON login_events, account_management_events TO ${app};
     GRANT SELECT, INSERT, UPDATE, DELETE ON
       entities, events, sources, source_records, sync_runs, snapshots,
-      revisions, merge_operations, app_settings, worker_heartbeats, export_jobs, drive_files, drive_parts TO ${worker};
+      revisions, merge_operations, app_settings, account_settings, worker_heartbeats, export_jobs, game_saves, drive_files, drive_parts TO ${worker};
     GRANT SELECT ON separate_records TO ${worker};
+    GRANT SELECT ON member_accounts TO ${worker};
+    GRANT DELETE ON login_events, account_management_events TO ${worker};
+    GRANT SELECT(occurred_at) ON login_events, account_management_events TO ${worker};
     ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS web_settings_read ON app_settings;
     DROP POLICY IF EXISTS web_settings_write ON app_settings;
     DROP POLICY IF EXISTS worker_settings ON app_settings;
+    DROP POLICY IF EXISTS worker_settings_read ON app_settings;
     CREATE POLICY web_settings_read ON app_settings FOR SELECT TO ${app} USING (true);
     CREATE POLICY web_settings_write ON app_settings FOR ALL TO ${app}
       USING (key <> 'owner') WITH CHECK (key <> 'owner');
     CREATE POLICY worker_settings ON app_settings FOR ALL TO ${worker}
       USING (key <> 'owner') WITH CHECK (key <> 'owner');
+    CREATE POLICY worker_settings_read ON app_settings FOR SELECT TO ${worker} USING (key='owner');
     CREATE SCHEMA IF NOT EXISTS pgboss AUTHORIZATION ${worker};
     GRANT USAGE ON SCHEMA pgboss TO ${app};
     GRANT ALL ON SCHEMA pgboss TO ${worker};

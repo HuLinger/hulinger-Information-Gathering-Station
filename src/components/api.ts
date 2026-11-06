@@ -98,7 +98,7 @@ export function errorMessage(error: unknown) {
 
 export interface AuthStatus {
   state: 'unconfigured' | 'signed-out' | 'setup-mfa' | 'ready';
-  user?: { id: string; email: string; name: string };
+  user?: { id: string; email: string; name: string; username: string | null; role: 'owner' | 'member' };
 }
 
 export type HubAction = (body: Record<string, unknown>, success?: string) => Promise<Record<string, unknown>>;

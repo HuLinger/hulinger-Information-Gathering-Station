@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { PoolClient } from 'pg';
-import { query, transaction } from './db';
+import { accountQuery as query, accountTransaction as transaction, currentAccountId } from './db';
 import type { HubEvent, Personal, Revision } from '../shared/contracts';
 
 export class DomainError extends Error {
@@ -121,7 +121,7 @@ export async function listHub(params:URLSearchParams) {
 export async function executeDomain(action:Action) {
   return transaction(async client=>{
     if(action.action==='create') {
-      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['content-url:'+action.url]);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`content-url:${currentAccountId()}:${action.url}`]);
       const duplicate=(await client.query<{id:string}>('SELECT id FROM events WHERE url=$1 AND status<>\'merged\' LIMIT 1',[action.url])).rows[0];
       if(duplicate) throw new DomainError(`此链接已存在，可查看或恢复已有内容。`,409,'DUPLICATE');
       const event=(await client.query<HubEvent>(`INSERT INTO events(id,title,summary,kind,url,published_at,published_precision,entity_id,source_name,manual,personal,tags,originals) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'人工补充',true,$9,$10,$11) RETURNING *`,[randomUUID(),action.title,action.summary,action.kind,action.url,action.published_at??null,action.published_at?(action.published_precision??'datetime'):'unknown',action.entity_id??null,{...defaultPersonal,note:action.note},action.tags,{title:action.title,summary:action.summary,kind:action.kind,entity_id:action.entity_id??null,tags:action.tags}])).rows[0];

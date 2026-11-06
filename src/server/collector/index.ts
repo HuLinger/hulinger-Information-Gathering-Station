@@ -1,5 +1,5 @@
 import { PgBoss } from 'pg-boss';
-import { query } from '../db';
+import { accountQuery as query, currentAccountId } from '../db';
 import type { Source } from '../../shared/contracts';
 import { CollectorError } from './network';
 import { SOURCE_PRESETS, sourcePreset } from './domain';
@@ -34,7 +34,7 @@ export async function getBoss(worker = false): Promise<PgBoss> {
 export async function ensureSources(): Promise<void> {
   for (const source of SOURCE_PRESETS) {
     await query(`INSERT INTO sources(id,name,kind,url,enabled,interval_minutes,config)
-      VALUES($1,$2,$3,$4,false,$5,$6) ON CONFLICT(id) DO NOTHING`,
+      VALUES($1,$2,$3,$4,false,$5,$6) ON CONFLICT(owner_id,id) DO NOTHING`,
     [source.id, source.name, source.kind, source.url, source.interval, JSON.stringify(source.config)]);
   }
 }
@@ -45,15 +45,15 @@ export async function enqueueSource(id: string): Promise<void> {
   if (!source?.enabled) throw new CollectorError('请先启用并验证该来源');
   const boss = await getBoss();
   const pending = await query(`SELECT id FROM pgboss.job WHERE name=$1 AND singleton_key=$2
-    AND state IN ('created','retry','active') LIMIT 1`, [QUEUES.source, id]);
+    AND state IN ('created','retry','active') LIMIT 1`, [QUEUES.source, `${currentAccountId()}:${id}`]);
   if (pending.length) return;
-  const runtime = (await query<{ value: { retryAt?: string } }>('SELECT value FROM app_settings WHERE key=$1', [`collector:${id}`]))[0]?.value;
+  const runtime = (await query<{ value: { retryAt?: string } }>('SELECT value FROM account_settings WHERE key=$1', [`collector:${id}`]))[0]?.value;
   if (runtime?.retryAt && Date.parse(runtime.retryAt) > Date.now()) throw new CollectorError('来源仍在退避或限流等待中，请按计划时间重试', new Date(runtime.retryAt));
   if (source.last_attempt && Date.now() - new Date(source.last_attempt).getTime() < 60_000) {
     throw new CollectorError('来源刚刚同步，请至少等待一分钟再重试', new Date(new Date(source.last_attempt).getTime() + 60_000));
   }
   // Exclusive queue + singletonKey deduplicates both queued and active requests.
-  const jobId = await boss.send(QUEUES.source, { sourceId: id }, { singletonKey: id });
+  const jobId = await boss.send(QUEUES.source, { accountId: currentAccountId(), sourceId: id }, { singletonKey: `${currentAccountId()}:${id}` });
   if (jobId) await query(`UPDATE sources SET coverage=COALESCE(coverage,'同步已进入持久任务队列，等待后台执行') WHERE id=$1`, [id]);
 }
 

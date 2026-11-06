@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Alert, App, Button, Checkbox, Drawer, Dropdown, Form, Input, Pagination, Select, Skeleton, Space, Tabs, Tag } from 'antd';
 import type { InputRef } from 'antd';
-import { AppstoreOutlined, ArrowRightOutlined, BookOutlined, CheckOutlined, CloudOutlined, DeleteOutlined, DownOutlined, FilterOutlined, GithubOutlined, HomeOutlined, LinkOutlined, LogoutOutlined, MenuOutlined, MoreOutlined, PlusOutlined, SearchOutlined, SettingOutlined, SyncOutlined, UserOutlined, WifiOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, ArrowRightOutlined, BookOutlined, CheckOutlined, CloudOutlined, DeleteOutlined, DownOutlined, FilterOutlined, GithubOutlined, HomeOutlined, LinkOutlined, LogoutOutlined, MenuOutlined, MoreOutlined, PlusOutlined, SearchOutlined, SettingOutlined, SyncOutlined, TeamOutlined, ToolOutlined, UserOutlined, WifiOutlined } from '@ant-design/icons';
 import type { HubData, HubEvent, Personal } from '../shared/contracts';
 import { ApiError, errorMessage, postJson, requestHubData, requestJson, type AuthStatus, type HubAction } from './api';
 import { EmptyState, ErrorNotice, kindOptions, recordValue, sourceHealth, stringArray, stringValue } from './format';
@@ -16,8 +16,10 @@ import EntitiesPanel, { EntityDetail } from './EntitiesPanel';
 import SourcesPanel, { SourceIcon } from './SourcesPanel';
 import SettingsPanel from './SettingsPanel';
 import DrivePanel from './drive/DrivePanel';
+import ToolsPanel from './tools/ToolsPanel';
+import AccountsPanel from './accounts/AccountsPanel';
 
-const views = ['feed', 'models', 'projects', 'mine', 'sources', 'search', 'settings', 'drive'] as const;
+const views = ['feed', 'models', 'projects', 'mine', 'sources', 'search', 'settings', 'drive', 'tools', 'accounts'] as const;
 type View = typeof views[number];
 const navItems: { key: View; label: string; mobile: string; icon: React.ReactNode }[] = [
   { key: 'feed', label: '最新动态', mobile: '动态', icon: <HomeOutlined /> },
@@ -26,6 +28,7 @@ const navItems: { key: View; label: string; mobile: string; icon: React.ReactNod
   { key: 'mine', label: '我的整理', mobile: '我的', icon: <BookOutlined /> },
   { key: 'sources', label: '来源管理', mobile: '来源', icon: <WifiOutlined /> },
   { key: 'drive', label: '个人云盘', mobile: '云盘', icon: <CloudOutlined /> },
+  { key: 'tools', label: '小工具', mobile: '工具', icon: <ToolOutlined /> },
 ];
 const titles: Record<View, { title: string; subtitle: string }> = {
   feed: { title: '今天，关注这些变化。', subtitle: '汇集可信来源的 AI 更新与开源发现，让值得关注的信息留在这里。' },
@@ -36,21 +39,24 @@ const titles: Record<View, { title: string; subtitle: string }> = {
   search: { title: '找回你关注的信息。', subtitle: '搜索资讯、模型、开源项目，以及你的标签与私人备注。' },
   settings: { title: '你的资料，由你掌握。', subtitle: '管理个人工作空间、阅读偏好与完整数据导出。' },
   drive: { title: '文件随行，存储由你掌握。', subtitle: '在自己的服务器保存大文件，登录后上传、续传、下载与整理。' },
+  tools: { title: '小工具', subtitle: '常用工具集中在这里，选择卡片即可进入。' },
+  accounts: { title: '账号管理', subtitle: '邀请成员使用私有工作空间，管理账号状态并查看登录记录。' },
 };
 const sectionItems = [{ key: 'favorite', label: '收藏' }, { key: 'later', label: '稍后读' }, { key: 'archived', label: '归档' }, { key: 'review', label: '需核对' }, { key: 'trash', label: '回收站' }];
 const validSections = [...sectionItems.map((item) => item.key), 'excluded'];
 const normalizeView = (value: string): View => views.includes(value as View) ? value as View : 'feed';
-const viewStorageKey = (view: View, section: string) => `hulinger-view-${view}-${view === 'mine' ? section : 'default'}`;
+const viewStorageKey = (userId: string, view: View, section: string) => `hulinger-user-${userId}-view-${view}-${view === 'mine' ? section : 'default'}`;
+const accessibleView = (value: string, user: AuthStatus['user']) => value === 'accounts' && user?.role !== 'owner' ? 'feed' : normalizeView(value);
 interface Filters { kind?: string; source?: string; tag?: string; from?: string; to?: string; dateUnknown?: boolean }
 
-export default function HubApp({ initialView, initialSection, initialEventId, initialEntityId }: { initialView: string; initialSection: string; initialEventId: string | null; initialEntityId: string | null }) {
+export default function HubApp({ initialView, initialSection, initialEventId, initialEntityId, initialAuth }: { initialView: string; initialSection: string; initialEventId: string | null; initialEntityId: string | null; initialAuth?: AuthStatus }) {
   const router = useRouter();
   const { message, modal } = App.useApp();
-  const [view, setView] = useState<View>(normalizeView(initialView));
+  const [view, setView] = useState<View>(initialAuth ? accessibleView(initialView, initialAuth.user) : normalizeView(initialView));
   const [section, setSection] = useState(validSections.includes(initialSection) ? initialSection : 'favorite');
   const [eventId, setEventId] = useState(initialEventId);
   const [entityId, setEntityId] = useState(initialEntityId);
-  const [auth, setAuth] = useState<AuthStatus | null>(null);
+  const [auth, setAuth] = useState<AuthStatus | null>(initialAuth ?? null);
   const [data, setData] = useState<HubData | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -74,10 +80,11 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
   const searchRef = useRef<InputRef>(null);
   const searchComposing = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const authRef = useRef<AuthStatus | null>(initialAuth ?? null);
 
-  const restoreViewState = useCallback((nextView: View, nextSection: string) => {
+  const restoreViewState = useCallback((nextView: View, nextSection: string, userId?: string) => {
     let saved: Record<string, unknown> = {};
-    try { saved = recordValue(JSON.parse(window.sessionStorage.getItem(viewStorageKey(nextView, nextSection)) ?? '{}')); } catch { /* Session preferences are optional. */ }
+    try { if (userId) saved = recordValue(JSON.parse(window.sessionStorage.getItem(viewStorageKey(userId, nextView, nextSection)) ?? '{}')); } catch { /* Session preferences are optional. */ }
     const savedFilters = recordValue(saved.filters);
     const restoredFilters: Filters = {};
     if (kindOptions.some((option) => option.value === savedFilters.kind)) restoredFilters.kind = String(savedFilters.kind);
@@ -93,18 +100,24 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
 
   useEffect(() => {
     requestJson<AuthStatus>('/api/auth/status').then((status) => {
-      if (status.state !== 'ready') { router.replace('/login'); return; }
+      if (status.state !== 'ready') { authRef.current = null; setAuth(null); setData(null); router.replace('/login'); return; }
       const current = new URL(window.location.href);
-      restoreViewState(normalizeView(current.searchParams.get('view') ?? 'feed'), current.searchParams.get('section') ?? 'favorite');
+      const requestedView = current.searchParams.get('view') ?? 'feed';
+      const nextView = accessibleView(requestedView, status.user);
+      if (requestedView === 'accounts' && nextView !== 'accounts') window.history.replaceState(null, '', '/');
+      if (authRef.current?.user?.id && authRef.current.user.id !== status.user?.id) { setData(null); setEventId(null); setEntityId(null); }
+      authRef.current = status;
+      setView(nextView);
+      restoreViewState(nextView, current.searchParams.get('section') ?? 'favorite', status.user?.id);
       setAuth(status);
       setSessionReady(true);
       try { if (window.localStorage.getItem('hulinger-density') === 'compact') setDensity('compact'); } catch { /* A blocked preference store must not prevent login. */ }
     }).catch((cause) => { setError(errorMessage(cause)); setLoading(false); });
     const onPop = () => {
       const url = new URL(window.location.href);
-      const nextView = normalizeView(url.searchParams.get('view') ?? 'feed');
+      const nextView = accessibleView(url.searchParams.get('view') ?? 'feed', authRef.current?.user);
       const nextSection = url.searchParams.get('section') ?? 'favorite';
-      setView(nextView); setSection(nextSection); restoreViewState(nextView, nextSection); setLoading(true);
+      setView(nextView); setSection(nextSection); restoreViewState(nextView, nextSection, authRef.current?.user?.id); setLoading(true);
       setEventId(url.searchParams.get('id')); setEntityId(url.searchParams.get('entity'));
       setSelectedIds([]); setManaging(false);
     };
@@ -114,12 +127,12 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
   }, [router, restoreViewState]);
 
   useEffect(() => {
-    if (!sessionReady) return;
-    try { window.sessionStorage.setItem(viewStorageKey(view, section), JSON.stringify({ q, filters, feedTab, page })); } catch { /* Browsing still works when session storage is unavailable. */ }
-  }, [sessionReady, view, section, q, filters, feedTab, page]);
+    if (!sessionReady || !auth?.user?.id) return;
+    try { window.sessionStorage.setItem(viewStorageKey(auth.user.id, view, section), JSON.stringify({ q, filters, feedTab, page })); } catch { /* Browsing still works when session storage is unavailable. */ }
+  }, [sessionReady, auth?.user?.id, view, section, q, filters, feedTab, page]);
 
   useEffect(() => {
-    if (auth?.state !== 'ready' || view === 'drive') return;
+    if (auth?.state !== 'ready' || ['drive', 'tools', 'accounts'].includes(view)) return;
     const controller = new AbortController(); abortRef.current = controller;
     const params = new URLSearchParams({ view, page: String(page) });
     if (view === 'mine') params.set('section', section);
@@ -129,11 +142,11 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
     for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value === true ? '1' : String(value));
     requestHubData(`/api/hub?${params}`, { signal: controller.signal }).then((result) => { setData(result); setError(''); setLoading(false); }).catch((cause) => {
       if (controller.signal.aborted) return;
-      if (cause instanceof ApiError && cause.status === 401) { router.replace('/login'); return; }
+      if (cause instanceof ApiError && cause.status === 401) { authRef.current = null; setData(null); setAuth(null); router.replace('/login'); return; }
       setError(errorMessage(cause)); setLoading(false);
     });
     return () => controller.abort();
-  }, [auth?.state, view, page, section, q, filters, feedTab, epoch, router]);
+  }, [auth?.state, auth?.user?.id, view, page, section, q, filters, feedTab, epoch, router]);
 
   useEffect(() => {
     if (view !== 'sources' || auth?.state !== 'ready') return;
@@ -162,6 +175,7 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
     window.history.pushState(null, '', params.size ? `/?${params}` : '/');
   }
   function navigate(next: View, nextSection = 'favorite') {
+    if (next === 'accounts' && auth?.user?.role !== 'owner') return;
     abortRef.current?.abort(); setLoading(true); setView(next); setSection(nextSection); setPage(1); setSelectedIds([]); setManaging(false); setQ(''); setSearchText(''); setFilters({}); setEventId(null); setEntityId(null); setMobileNav(false);
     location(next, nextSection, null, null); window.scrollTo({ top: 0 });
   }
@@ -172,6 +186,19 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
   function openEvent(event: HubEvent) { setEventId(event.id); location(view, section, event.id, entityId); }
   function openEntity(id: string) { setEntityId(id); setEventId(null); location(view, section, null, id); }
   function reload() { if (!auth) { window.location.reload(); return; } setLoading(true); setSelectedIds([]); setEpoch((value) => value + 1); }
+  function clearSession() {
+    abortRef.current?.abort();
+    message.destroy();
+    const userId = authRef.current?.user?.id;
+    try {
+      for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
+        const key = window.sessionStorage.key(index);
+        if (key && ((userId && key.startsWith('hulinger-user-' + userId + '-')) || key.startsWith('hulinger-view-'))) window.sessionStorage.removeItem(key);
+      }
+    } catch { /* Clearing browser preferences must not prevent server sign-out. */ }
+    authRef.current = null; setSessionReady(false); setAuth(null); setData(null); setEventId(null); setEntityId(null); setEditingNew(false); setMergeIds(null); setSplitDetail(null); setQ(''); setSearchText(''); setError('');
+    router.replace('/login'); router.refresh();
+  }
   async function toggleFavorite(event: HubEvent) {
     setMutationPending(true);
     try { await act({ action: 'batch', ids: [event.id], personal: { favorite: !event.personal.favorite } }, event.personal.favorite ? '已取消收藏' : '已收藏'); }
@@ -196,7 +223,7 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
     if (!ids) return;
     modal.confirm({ title: status === 'delete' ? `永久删除 ${ids.length} 条内容？` : status === 'trash' ? `将 ${ids.length} 条内容移入回收站？` : `处理 ${ids.length} 条内容？`, content: status === 'delete' ? '将清除内容、私人备注及人工覆盖，无法恢复。最少来源标识用于阻止重复采集。' : '只处理当前明确选中的条目。', okText: status === 'delete' ? '永久删除' : '确认', cancelText: '取消', okButtonProps: { danger: status === 'delete' || status === 'trash' }, onOk: async () => { await act({ action: 'status', ids, status }, '选中内容已处理'); setSelectedIds([]); } });
   }
-  const currentTitle = navItems.find((item) => item.key === view)?.label ?? (view === 'search' ? '全局搜索' : '设置');
+  const currentTitle = navItems.find((item) => item.key === view)?.label ?? (view === 'search' ? '全局搜索' : view === 'accounts' ? '账号管理' : '设置');
   const entity = data?.entities.find((item) => item.id === entityId);
   const matchingEntities = q ? data?.entities.filter((item) => [
     item.name,
@@ -211,15 +238,16 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
   const hasFilter = activeFilters.length > 0 || !!q || (view === 'feed' && feedTab !== 'all');
   const initialLoadFailed = !!error && !data && !loading;
   const emptyDescription = hasFilter ? '试着清除筛选条件，或换一个更宽泛的关键词。' : view === 'mine' ? `你整理的${sectionLabel}内容会显示在这里。` : data?.sources.some((source) => source.enabled) ? '来源已启用。完成首次同步后，可核验的资讯会自动出现在这里。' : '先启用几个你信任的公开来源，或添加一条值得留下的链接。';
-  const moreMenu = { items: [{ key: 'drive', label: '个人云盘', icon: <CloudOutlined /> }, { key: 'sources', label: '来源管理', icon: <WifiOutlined /> }, { key: 'settings', label: '设置与数据导出', icon: <SettingOutlined /> }, { type: 'divider' as const }, { key: 'logout', label: '退出登录', icon: <LogoutOutlined /> }], onClick: ({ key }: { key: string }) => {
-    if (key === 'logout') { modal.confirm({ title: '退出当前登录？', okText: '退出', cancelText: '取消', onOk: async () => { await postJson('/api/auth/sign-out', {}); router.replace('/login'); router.refresh(); } }); }
+  const moreMenu = { items: [{ key: 'drive', label: '个人云盘', icon: <CloudOutlined /> }, { key: 'tools', label: '小工具', icon: <ToolOutlined /> }, { key: 'sources', label: '来源管理', icon: <WifiOutlined /> }, { key: 'settings', label: '设置与数据导出', icon: <SettingOutlined /> }, ...(auth?.user?.role === 'owner' ? [{ key: 'accounts', label: '账号管理', icon: <TeamOutlined /> }] : []), { type: 'divider' as const }, { key: 'logout', label: '退出登录', icon: <LogoutOutlined /> }], onClick: ({ key }: { key: string }) => {
+    if (key === 'logout') { modal.confirm({ title: '退出当前登录？', okText: '退出', cancelText: '取消', onOk: async () => { await postJson('/api/auth/sign-out', {}); clearSession(); } }); }
     else navigate(key as View);
   } };
 
-  const navigation = <nav aria-label="主导航" className="side-nav">{navItems.map((item) => <button className={`nav-item${view === item.key ? ' selected' : ''}`} key={item.key} onClick={() => navigate(item.key)} aria-label={item.label} title={item.label} aria-current={view === item.key ? 'page' : undefined}>{item.icon}<span>{item.label}</span></button>)}</nav>;
+  const visibleNavItems = [...navItems, ...(auth?.user?.role === 'owner' ? [{ key: 'accounts' as const, label: '账号管理', mobile: '账号', icon: <TeamOutlined /> }] : [])];
+  const navigation = <nav aria-label="主导航" className="side-nav">{visibleNavItems.map((item) => <button className={`nav-item${view === item.key ? ' selected' : ''}`} key={item.key} onClick={() => navigate(item.key)} aria-label={item.label} title={item.label} aria-current={view === item.key ? 'page' : undefined}>{item.icon}<span>{item.label}</span></button>)}</nav>;
   const listContent = <>
     {view === 'search' && <div className="search-workspace"><Input.Search ref={searchRef} autoFocus aria-label="全局搜索" placeholder="搜索 AI 动态、模型、开源项目或个人备注…" value={searchText} onChange={(change) => setSearchText(change.target.value)} onCompositionStart={() => { searchComposing.current = true; }} onCompositionEnd={() => { searchComposing.current = false; }} onSearch={(value, event) => { if (event && 'isComposing' in event.nativeEvent && event.nativeEvent.isComposing) return; search(value); }} allowClear enterButton="搜索" size="large" /></div>}
-    {view === 'mine' && <div className="mobile-utility"><Button icon={<CloudOutlined />} onClick={() => navigate('drive')}>个人云盘</Button><Button icon={<WifiOutlined />} onClick={() => navigate('sources')}>来源管理</Button><Button icon={<SettingOutlined />} onClick={() => navigate('settings')}>设置与导出</Button></div>}
+    {view === 'mine' && <div className="mobile-utility"><Button icon={<CloudOutlined />} onClick={() => navigate('drive')}>个人云盘</Button><Button icon={<ToolOutlined />} onClick={() => navigate('tools')}>小工具</Button><Button icon={<WifiOutlined />} onClick={() => navigate('sources')}>来源管理</Button><Button icon={<SettingOutlined />} onClick={() => navigate('settings')}>设置与导出</Button>{auth?.user?.role === 'owner' && <Button icon={<TeamOutlined />} onClick={() => navigate('accounts')}>账号管理</Button>}</div>}
     <div className="feed-toolbar">
       {view === 'feed' ? <Tabs activeKey={feedTab} onChange={(key) => { setFeedTab(key); setPage(1); setSelectedIds([]); setLoading(true); }} items={[{ key: 'all', label: '全部' }, { key: 'unread', label: '未读' }, { key: 'followed', label: '我关注的' }]} /> : view === 'mine' ? <Tabs activeKey={section === 'excluded' ? 'review' : section} onChange={(key) => { setSection(key); setPage(1); setSelectedIds([]); setManaging(false); setLoading(true); location('mine', key, null, null); }} items={sectionItems} /> : <span className="search-count">{q ? `找到 ${data?.total ?? 0} 条资讯` : '跨类型检索'}</span>}
       <div className="toolbar-actions"><Button icon={<FilterOutlined />} onClick={() => { setFilterError(''); setFilterOpen(true); }}>筛选{activeFilters.length > 0 ? ` · ${activeFilters.length}` : ''} <DownOutlined /></Button>{view !== 'mine' && <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditingNew(true)}>添加链接</Button>}<Dropdown trigger={['click']} menu={{ items: [{ key: 'manage', label: managing ? '退出批量整理' : '批量整理' }, { key: 'refresh', label: '刷新列表' }], onClick: ({ key }) => key === 'refresh' ? reload() : (setManaging(!managing), setSelectedIds([])) }}><Button type="text" icon={<MoreOutlined />} aria-label="列表更多操作" /></Dropdown></div>
@@ -253,12 +281,14 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
     <aside className="app-sidebar"><button className="brand" onClick={() => navigate('feed')} aria-label="Hulinger AI 情报与资料首页"><strong className="brand-full">HULINGER</strong><strong className="brand-short" aria-hidden="true">HL</strong>{' '}<span>AI 情报与资料</span></button>{navigation}<div className="sidebar-bottom"><Dropdown menu={moreMenu} trigger={['click']} placement="topLeft"><button className="user-menu"><UserOutlined /><span>{auth?.user?.name || 'Hulinger'}</span><MoreOutlined /></button></Dropdown></div></aside>
     <header className="app-header"><div className="mobile-header-brand"><Button icon={<MenuOutlined />} type="text" aria-label="打开导航" onClick={() => setMobileNav(true)} /><strong>HULINGER</strong></div><div className="breadcrumb"><span>工作空间</span><span>/</span><strong>{currentTitle}</strong></div><div className="header-search"><Input ref={view === 'search' ? undefined : searchRef} prefix={<SearchOutlined />} suffix={<kbd>⌘ K</kbd>} aria-label="搜索 AI 动态、模型、开源项目" placeholder="搜索 AI 动态、模型、开源项目…" value={searchText} onChange={(change) => setSearchText(change.target.value)} onCompositionStart={() => { searchComposing.current = true; }} onCompositionEnd={() => { searchComposing.current = false; }} onPressEnter={(event) => { if (!event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) search(searchText); }} /></div><div className="mobile-header-actions"><Button icon={<SearchOutlined />} type="text" aria-label="全局搜索" onClick={() => navigate('search')} /><Dropdown menu={moreMenu} trigger={['click']}><Button type="text" icon={<UserOutlined />}>更多</Button></Dropdown></div></header>
     <main className="app-main" id="main-content"><div className="page-intro">{view === 'feed' && <p className="today-date">{new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date())}</p>}<h1 tabIndex={-1}>{titles[view].title}</h1><p className="page-description">{titles[view].subtitle}</p></div>
-      {error && (view !== 'drive' || !auth) && <div className="section-alert"><ErrorNotice error={error} retry={reload} /></div>}
-      {loading && data && view !== 'drive' && <div className="refresh-status" role="status"><SyncOutlined spin /> 正在读取最新资料…</div>}
+      {error && (!['drive', 'tools', 'accounts'].includes(view) || !auth) && <div className="section-alert"><ErrorNotice error={error} retry={reload} /></div>}
+      {loading && data && !['drive', 'tools', 'accounts'].includes(view) && <div className="refresh-status" role="status"><SyncOutlined spin /> 正在读取最新资料…</div>}
       {auth?.state === 'ready' && <div hidden={view !== 'drive'}><DrivePanel active={view === 'drive'} /></div>}
+      {auth?.state === 'ready' && view === 'tools' && <ToolsPanel />}
+      {auth?.state === 'ready' && auth.user?.role === 'owner' && view === 'accounts' && <AccountsPanel />}
       <div className={showRail ? 'workspace-columns' : 'workspace-single'}>
-        <div className="main-column">{showList && listContent}{(view === 'models' || view === 'projects') && (data ? <EntitiesPanel key={view} entities={data.entities} kind={view === 'projects' ? 'project' : 'model'} act={act} onOpen={openEntity} onSources={() => navigate('sources')} /> : loading ? <Skeleton active /> : null)}{view === 'sources' && (data ? <SourcesPanel sources={data.sources} runs={data.runs} act={act} onRefresh={reload} /> : loading ? <Skeleton active /> : null)}{view === 'settings' && auth?.state === 'ready' && <SettingsPanel user={auth.user} act={act} density={density} onDensity={(next) => { setDensity(next); window.localStorage.setItem('hulinger-density', next); }} onSources={() => navigate('sources')} />}</div>
-        {showRail && <aside className="context-rail" aria-label="来源与稍后读"><section className="rail-card"><div className="rail-card-heading"><AppstoreOutlined /><h2>来源状态</h2><Button type="text" aria-label="查看全部来源" onClick={() => navigate('sources')}>全部 <ArrowRightOutlined /></Button></div><div className="rail-source-list">{data?.sources.length ? [...data.sources].sort((a, b) => Number(b.enabled) - Number(a.enabled)).slice(0, 3).map((source) => { const health = sourceHealth(source); return <button key={source.id} className="rail-source" onClick={() => navigate('sources')}><span className="rail-source-icon"><SourceIcon source={source} /></span><div><strong>{source.name}</strong><span>{source.id.includes('github') ? '开源项目与发布动态' : '模型更新与官方公告'}</span></div><span className={`status-text ${health.tone}`}>{health.label}</span></button>; }) : <p className="rail-empty">{loading ? '正在读取来源状态…' : '启用来源后，自动收集的状态会显示在这里。'}</p>}</div></section><section className="rail-card"><div className="rail-card-heading"><BookOutlined /><h2>稍后读</h2><Button type="text" icon={<ArrowRightOutlined />} aria-label="查看全部稍后读" onClick={() => navigate('mine', 'later')} /></div>{data?.later.length ? <div className="rail-later-list">{data.later.map((event) => <button key={event.id} onClick={() => openEvent(event)}>{event.title}</button>)}</div> : <div className="rail-empty"><p>先留住，慢慢读。</p><span>在资讯详情中加入稍后读，方便下次继续。</span></div>}</section><div className="rail-note"><CheckOutlined /><span>内容保留来源，个人整理由你掌握。</span></div></aside>}
+        <div className="main-column">{auth?.state === 'ready' && showList && listContent}{(view === 'models' || view === 'projects') && (data ? <EntitiesPanel key={view} entities={data.entities} kind={view === 'projects' ? 'project' : 'model'} act={act} onOpen={openEntity} onSources={() => navigate('sources')} /> : loading ? <Skeleton active /> : null)}{view === 'sources' && (data ? <SourcesPanel sources={data.sources} runs={data.runs} act={act} onRefresh={reload} /> : loading ? <Skeleton active /> : null)}{view === 'settings' && auth?.state === 'ready' && <SettingsPanel user={auth.user} onSignedOut={clearSession} act={act} density={density} onDensity={(next) => { setDensity(next); window.localStorage.setItem('hulinger-density', next); }} onSources={() => navigate('sources')} />}</div>
+        {showRail && auth?.state === 'ready' && <aside className="context-rail" aria-label="来源与稍后读"><section className="rail-card"><div className="rail-card-heading"><AppstoreOutlined /><h2>来源状态</h2><Button type="text" aria-label="查看全部来源" onClick={() => navigate('sources')}>全部 <ArrowRightOutlined /></Button></div><div className="rail-source-list">{data?.sources.length ? [...data.sources].sort((a, b) => Number(b.enabled) - Number(a.enabled)).slice(0, 3).map((source) => { const health = sourceHealth(source); return <button key={source.id} className="rail-source" onClick={() => navigate('sources')}><span className="rail-source-icon"><SourceIcon source={source} /></span><div><strong>{source.name}</strong><span>{source.id.includes('github') ? '开源项目与发布动态' : '模型更新与官方公告'}</span></div><span className={`status-text ${health.tone}`}>{health.label}</span></button>; }) : <p className="rail-empty">{loading ? '正在读取来源状态…' : '启用来源后，自动收集的状态会显示在这里。'}</p>}</div></section><section className="rail-card"><div className="rail-card-heading"><BookOutlined /><h2>稍后读</h2><Button type="text" icon={<ArrowRightOutlined />} aria-label="查看全部稍后读" onClick={() => navigate('mine', 'later')} /></div>{data?.later.length ? <div className="rail-later-list">{data.later.map((event) => <button key={event.id} onClick={() => openEvent(event)}>{event.title}</button>)}</div> : <div className="rail-empty"><p>先留住，慢慢读。</p><span>在资讯详情中加入稍后读，方便下次继续。</span></div>}</section><div className="rail-note"><CheckOutlined /><span>内容保留来源，个人整理由你掌握。</span></div></aside>}
       </div>
     </main>
     <nav className="mobile-bottom-nav" aria-label="手机主导航">{navItems.slice(0, 4).map((item) => <button key={item.key} className={view === item.key ? 'selected' : ''} aria-label={item.label} aria-current={view === item.key ? 'page' : undefined} onClick={() => navigate(item.key)}>{item.icon}<span>{item.mobile}</span></button>)}</nav>
@@ -268,11 +298,11 @@ export default function HubApp({ initialView, initialSection, initialEventId, in
       if (values.from && values.to && values.from > values.to) { setFilterError('结束日期不能早于开始日期。'); return; }
       setFilters(values); setPage(1); setSelectedIds([]); setLoading(true); setFilterOpen(false);
     }}><Form.Item name="kind" label="内容类型"><Select allowClear options={kindOptions} placeholder="全部类型" /></Form.Item><Form.Item name="source" label="来源"><Select allowClear options={[...(data?.sources.map((source) => ({ value: source.name, label: source.name })) ?? []), { value: '人工补充', label: '人工补充' }]} placeholder="全部来源" /></Form.Item><Form.Item name="tag" label="标签"><Input placeholder="输入一个完整标签" /></Form.Item><div className="form-columns"><Form.Item name="from" label="发布日期从"><Input type="date" /></Form.Item><Form.Item name="to" label="发布日期至"><Input type="date" /></Form.Item></div><Form.Item name="dateUnknown" valuePropName="checked"><Checkbox>仅显示发布时间未知的内容</Checkbox></Form.Item><p className="muted">日期按北京时间筛选。发布时间未知的内容不进入已知日期范围，请勿同时选择这两种条件。</p><div className="form-actions"><Button onClick={() => { setFilters({}); setPage(1); setFilterOpen(false); }}>重置</Button><Button htmlType="submit" type="primary">应用筛选</Button></div></Form></Drawer>
-    {editingNew && <EventEditor entities={data?.entities ?? []} act={act} onClose={() => setEditingNew(false)} />}
-    {entity && <EntityDetail key={entity.id} entity={entity} epoch={epoch} act={act} onClose={() => { setEntityId(null); location(view, section, eventId, null); }} onEvent={openEvent} />}
-    {entityId && data && !entity && <Drawer open title="实体资料" onClose={() => { setEntityId(null); location(view, section, eventId, null); }}><EmptyState title="当前范围内未找到这个对象" description="请清除搜索条件后重新查找，或检查实体是否已变更。" /></Drawer>}
-    {eventId && <EventDetail key={eventId} id={eventId} epoch={epoch} entities={data?.entities ?? []} sources={data?.sources ?? []} act={act} onClose={() => { setEventId(null); location(view, section, null, entityId); }} onEntity={openEntity} onMerge={setMergeIds} onSplit={setSplitDetail} />}
-    {mergeIds && <MergeDialog initialIds={mergeIds} candidates={data?.events ?? []} act={act} onClose={() => { setMergeIds(null); setSelectedIds([]); }} />}
-    {splitDetail && <SplitDialog detail={splitDetail} act={act} onClose={() => { setSplitDetail(null); setEventId(null); location(view, section, null, entityId); }} />}
+    {auth?.state === 'ready' && editingNew && <EventEditor entities={data?.entities ?? []} act={act} onClose={() => setEditingNew(false)} />}
+    {auth?.state === 'ready' && entity && <EntityDetail key={entity.id} entity={entity} epoch={epoch} act={act} onClose={() => { setEntityId(null); location(view, section, eventId, null); }} onEvent={openEvent} />}
+    {auth?.state === 'ready' && entityId && data && !entity && <Drawer open title="实体资料" onClose={() => { setEntityId(null); location(view, section, eventId, null); }}><EmptyState title="当前范围内未找到这个对象" description="请清除搜索条件后重新查找，或检查实体是否已变更。" /></Drawer>}
+    {auth?.state === 'ready' && eventId && <EventDetail key={eventId} id={eventId} epoch={epoch} entities={data?.entities ?? []} sources={data?.sources ?? []} act={act} onClose={() => { setEventId(null); location(view, section, null, entityId); }} onEntity={openEntity} onMerge={setMergeIds} onSplit={setSplitDetail} />}
+    {auth?.state === 'ready' && mergeIds && <MergeDialog initialIds={mergeIds} candidates={data?.events ?? []} act={act} onClose={() => { setMergeIds(null); setSelectedIds([]); }} />}
+    {auth?.state === 'ready' && splitDetail && <SplitDialog detail={splitDetail} act={act} onClose={() => { setSplitDetail(null); setEventId(null); location(view, section, null, entityId); }} />}
   </div>;
 }

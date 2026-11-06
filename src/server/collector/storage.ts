@@ -1,5 +1,5 @@
 import { randomUUID, createHash } from 'node:crypto';
-import { transaction } from '../db';
+import { accountTransaction as transaction, currentAccountId } from '../db';
 import type { HubEvent, Source } from '../../shared/contracts';
 import { stableId, type CollectedItem } from './domain';
 
@@ -16,7 +16,7 @@ export async function persistItem(source: Pick<Source, 'id' | 'name'>, item: Col
 async function persistItemOnce(source: Pick<Source, 'id' | 'name'>, item: CollectedItem): Promise<PersistResult> {
   return transaction(async (client) => {
     // Share the URL lock with manual creation and exact cross-source matches.
-    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`content-url:${item.url}`]);
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`content-url:${currentAccountId()}:${item.url}`]);
     const recordId = stableId('record', `${source.id}\0${item.externalId}`);
     type SourceRecord = { id: string; event_id: string | null; excluded: boolean; data: Record<string, unknown> };
     const observed = (await client.query<SourceRecord>(
@@ -75,7 +75,7 @@ async function persistItemOnce(source: Pick<Source, 'id' | 'name'>, item: Collec
 
     if (item.entity) {
       await client.query(`INSERT INTO entities (id,kind,name,url,data) VALUES($1,$2,$3,$4,$5)
-        ON CONFLICT(id) DO UPDATE SET data=entities.data || EXCLUDED.data`,
+        ON CONFLICT(owner_id,id) DO UPDATE SET data=entities.data || EXCLUDED.data`,
       [item.entity.id, item.entity.kind, item.entity.name, item.entity.url, JSON.stringify(item.entity.data)]);
     }
 
@@ -91,7 +91,7 @@ async function persistItemOnce(source: Pick<Source, 'id' | 'name'>, item: Collec
     }
 
     await client.query(`INSERT INTO source_records(id,source_id,external_id,event_id,data) VALUES($1,$2,$3,$4,$5)
-      ON CONFLICT(source_id,external_id) DO UPDATE SET data=EXCLUDED.data,last_seen=now()`,
+      ON CONFLICT(owner_id,source_id,external_id) DO UPDATE SET data=EXCLUDED.data,last_seen=now()`,
     [recordId, source.id, item.externalId, event.id, JSON.stringify({ ...automatic, ...item.data, fingerprint })]);
     // A secondary source never silently replaces the chosen primary source. The
     // detail view can inspect every current source record independently.

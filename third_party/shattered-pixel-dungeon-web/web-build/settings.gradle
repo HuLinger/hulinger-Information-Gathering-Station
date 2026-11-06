@@ -1,0 +1,6 @@
+// Only modules needed by the browser build; no Android SDK or native plugins.
+rootProject.name = 'hulinger-shattered-pixel-dungeon-web'
+include ':SPD-classes', ':core', ':services', ':web'
+['SPD-classes', 'core', 'services', 'web'].each { module ->
+    project(":" + module).projectDir = file("../" + module)
+}
