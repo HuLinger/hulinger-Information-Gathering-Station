@@ -1,5 +1,7 @@
 # 破碎的像素地牢浏览器验收
 
+后续 0.3.1 的同层地图覆盖问题、根因与前后对照另见 [渲染修复验证](game-rendering-fix-validation.md)。下文保留 0.3.0 的验收范围与结果。
+
 日期：2026-11-06。使用隔离测试数据库与合成成员账号，在本机 Windows / Chrome 155 中运行实际 TeaVM 游戏产物；浏览器由 Playwright 驱动，软件 WebGL 使用 SwiftShader。上游固定提交 `ce39efde1c4e9929103a1df684d94fab6aa84bed`，游戏显示版本 `3.3.8-WEB`。最后一轮真实双页回归使用本机 Next.js 生产构建和 Caddy HTTPS 入口 `https://127.0.0.1:3443`；游戏源码摘要为 `deb8312ce0f15c7f8263b712510ac94221f3cd1d033d2488c118cab2eff6406f`。本记录不代表用户服务器部署或所有实体手机已经验收。
 
 ## 验收范围
