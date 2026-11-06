@@ -132,9 +132,22 @@ export async function receiveUpload(id: string, request: Request): Promise<Conve
     } finally { clearTimeout(timeout); }
     await file.close();
     if (lockLost) throw new DomainError('上传连接已中断，请重新上传。', 503, 'UPLOAD_INTERRUPTED');
-    const [complete] = await accountQuery<UploadRow>(`UPDATE conversion_uploads SET state='ready',sha256=$2,expires_at=now()+interval '24 hours'
-      WHERE id=$1 AND state='uploading' RETURNING *`, [row.id, hash.digest('hex')]);
-    if (!complete) { await removeInput(row.id); throw new DomainError('上传记录已失效，请重新选择文件。', 409, 'UPLOAD_EXPIRED'); }
+    let complete: UploadRow | undefined;
+    try {
+      // Publish on the session that holds the input lock. A separate pooled
+      // UPDATE could remain queued after this session dies and its file lock
+      // has been acquired by a new upload attempt.
+      await lock.query('BEGIN');
+      await lock.query("SELECT set_config('hub.account_id', $1, true)", [currentAccountId()]);
+      const result = await lock.query<UploadRow>(`UPDATE conversion_uploads SET state='ready',sha256=$2,expires_at=now()+interval '24 hours'
+        WHERE id=$1 AND state='uploading' RETURNING *`, [row.id, hash.digest('hex')]);
+      complete = result.rows[0];
+      await lock.query('COMMIT');
+    } catch {
+      await lock.query('ROLLBACK').catch(() => { lockLost = true; });
+      throw new DomainError('上传确认已中断，请重新上传。', 503, 'UPLOAD_INTERRUPTED');
+    }
+    if (!complete) { if (!lockLost) await removeInput(row.id); throw new DomainError('上传记录已失效，请重新选择文件。', 409, 'UPLOAD_EXPIRED'); }
     return uploadDto(complete);
   } finally {
     request.signal.removeEventListener('abort', onAbort);

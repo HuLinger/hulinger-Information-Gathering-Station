@@ -173,6 +173,41 @@ test('conversion persistence, account RLS, worker recovery, bounded upload and 2
       await service.receiveUpload(lost.id, new Request('http://localhost/upload', { method: 'PUT', headers: { 'content-type': 'application/octet-stream' }, body: bytes }));
       assert.equal((await service.getUpload(lost.id)).state, 'ready');
     });
+
+    // A connection may disappear after the file is complete while the final
+    // state UPDATE waits on another transaction. Losing the input lock must
+    // also prevent that queued UPDATE from publishing an unprotected success.
+    const publishing = await withAccountScope(ids[1], () => service.createUpload({ name: '提交中断.ncm', bytes: bytes.length }));
+    const blocker = await admin.connect();
+    let finalizing: Promise<{ upload?: Awaited<ReturnType<typeof service.receiveUpload>>; error?: { code: string } }> | undefined;
+    try {
+      await blocker.query('BEGIN');
+      await blocker.query('SELECT id FROM conversion_uploads WHERE id=$1 FOR UPDATE', [publishing.id]);
+      finalizing = withAccountScope(ids[1], () => service.receiveUpload(publishing.id, new Request('http://localhost/upload', {
+        method: 'PUT', headers: { 'content-type': 'application/octet-stream' }, body: bytes,
+      }))).then(upload => ({ upload }), error => ({ error }));
+      const waitingToPublish = async () => Number((await admin.query(`SELECT count(*) AS count FROM pg_stat_activity
+        WHERE datname=$1 AND wait_event_type='Lock' AND query LIKE 'UPDATE conversion_uploads SET state=%'`, [name])).rows[0].count);
+      for (let index = 0; index < 100 && await waitingToPublish() < 1; index++) await delay(20);
+      assert.equal(await waitingToPublish(), 1, 'final ready UPDATE is waiting on the controlled row lock');
+      await admin.query(`SELECT pg_terminate_backend(l.pid) FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
+        WHERE a.datname=$1 AND a.application_name='hulinger-conversion-upload-lock' AND l.locktype='advisory' AND l.granted`, [name]);
+      await delay(50);
+      await blocker.query('ROLLBACK');
+      const outcome = await finalizing;
+      assert.equal(outcome.upload, undefined, 'a lost upload lock cannot report ready after finalization was queued');
+      assert.equal(outcome.error?.code, 'UPLOAD_INTERRUPTED');
+      await withAccountScope(ids[1], async () => {
+        assert.equal((await service.getUpload(publishing.id)).state, 'uploading');
+        await service.receiveUpload(publishing.id, new Request('http://localhost/upload', { method: 'PUT', headers: { 'content-type': 'application/octet-stream' }, body: bytes }));
+        assert.equal((await service.getUpload(publishing.id)).state, 'ready');
+        await service.deleteUpload(publishing.id);
+      });
+    } finally {
+      await blocker.query('ROLLBACK').catch(() => {});
+      blocker.release();
+      await finalizing;
+    }
     const abort = new AbortController();
     const aborted = await withAccountScope(ids[1], () => service.createJob({ uploadId: lost.id, targetFormat: 'audio' }));
     const aborting: ConversionProvider = { ...provider, async convert(_input, _format, directory, context) {

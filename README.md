@@ -10,7 +10,7 @@
 
 新增中文格式转换卡片，整合 ConvertX、Transmute、Stirling-PDF 与 NCM 音乐转换；已上传文件可直接切换合适引擎，后台完成后下载，默认保留 24 小时。提供 Docker / WSL2 引擎初始化流程。同日更新还包含账号独立的破碎的像素地牢存档、成员管理与地图覆盖修复。详情见 [发布说明](docs/releases/release-notes.md)、[变更记录](CHANGELOG.md) 和 [转换工具安装](integrations/conversion/README.md)。
 
-[小工具桌面截图](docs/verification/images/tools/tools-1440x900.jpg) · [账号与工具交互验收](docs/verification/tools-ui-validation.md) · [0.3.0 检查记录](docs/verification/v0.3-validation.md) · [0.3.1 地图修复验证](docs/verification/game-rendering-fix-validation.md)
+[小工具桌面截图](docs/verification/images/conversion/tools-desktop.png) · [格式转换截图](docs/verification/images/conversion/desktop-success.png) · [0.4.0 格式转换验证](docs/verification/v0.4-validation.md) · [账号与工具交互验收](docs/verification/tools-ui-validation.md) · [0.3.1 地图修复验证](docs/verification/game-rendering-fix-validation.md)
 
 ## 首版能力
 
