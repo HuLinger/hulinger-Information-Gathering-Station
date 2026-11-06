@@ -38,6 +38,8 @@ public class WebShatteredPixelDungeon extends ShatteredPixelDungeon {
 
 	private long nextAutoSaveAt;
 	private boolean hostPaused;
+	private int pendingWidth;
+	private int pendingHeight;
 
 	public WebShatteredPixelDungeon(PlatformSupport platform) {
 		super(platform);
@@ -59,9 +61,32 @@ public class WebShatteredPixelDungeon extends ShatteredPixelDungeon {
 	}
 
 	@Override
+	public void resize(int width, int height) {
+		if (width <= 0 || height <= 0) return;
+		// A browser rotation or host status banner can resize the canvas in the
+		// middle of a move. Resetting GameScene then destroys its actor thread
+		// before the asynchronous Web actor finishes, stranding the new scene.
+		// Apply the latest dimensions only after the current turn has settled.
+		pendingWidth = width;
+		pendingHeight = height;
+		applyPendingResize();
+	}
+
+	private void applyPendingResize() {
+		if (pendingWidth == 0 || hostPaused) return;
+		if (Game.scene() instanceof GameScene && Dungeon.hero != null
+				&& Dungeon.hero.isAlive() && !Dungeon.hero.ready) return;
+		int width = pendingWidth;
+		int height = pendingHeight;
+		pendingWidth = pendingHeight = 0;
+		super.resize(width, height);
+	}
+
+	@Override
 	public void render() {
 		if (hostPaused) return;
 		super.render();
+		applyPendingResize();
 
 		// IndexedDB writes triggered by pagehide may be cancelled by a reload.
 		// Save stable turns periodically so refreshing loses at most a few seconds.

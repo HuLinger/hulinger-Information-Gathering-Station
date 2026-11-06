@@ -12,6 +12,7 @@ let preferencePrefix;
 let namespace;
 let ready = false;
 let halted = false;
+let haltReason = null;
 let dirty = false;
 let busy = null;
 let pending = false;
@@ -19,9 +20,16 @@ let lastSaved = '';
 let snapshotTimer;
 let heartbeat;
 let checkpoint;
+let startupTimer;
+let latestStatus = null;
 
 function report(state, message) {
-  window.parent.postMessage({ channel: CHANNEL, type: 'status', state, message, updatedAt, dirty, ready }, window.location.origin);
+  // Authentication failure is terminal for this run. A conflict may only be
+  // upgraded to authentication failure, never undone by a late async callback.
+  if (haltReason === 'unauthorized' && state !== 'unauthorized') return;
+  if (haltReason === 'conflict' && state !== 'conflict' && state !== 'unauthorized') return;
+  latestStatus = { channel: CHANNEL, type: 'status', state, message, updatedAt, dirty, ready };
+  window.parent.postMessage(latestStatus, window.location.origin);
   if (!ready || halted) {
     loading.hidden = false;
     loading.textContent = message;
@@ -45,14 +53,19 @@ async function request(body, metadata = false) {
   let result;
   try { result = await response.json(); }
   catch { throw new RequestError('服务器响应无法读取，进度尚未同步。请稍后重试。', response.status || 502); }
+  if (!result || typeof result !== 'object' || Array.isArray(result)) throw new RequestError('存档响应格式不正确，游戏已保留当前进度。', response.ok ? 502 : response.status);
   if (!response.ok) throw new RequestError(result.error || '存档未保存，请稍后重试。', response.status, result.code);
   if (typeof result.scope !== 'string' || !Number.isSafeInteger(result.revision)) throw new RequestError('存档响应格式不正确，游戏已保留当前进度。', 502);
   return result;
 }
 
 function halt(state, message) {
+  if (haltReason === 'unauthorized') return;
+  haltReason = state;
   halted = true;
-  clearInterval(heartbeat);
+  clearTimeout(startupTimer);
+  // A conflicted run is paused but must still notice logout/account changes.
+  if (state !== 'conflict') clearInterval(heartbeat);
   clearInterval(checkpoint);
   clearTimeout(snapshotTimer);
   window.HulingerDungeon?.pause?.();
@@ -60,12 +73,15 @@ function halt(state, message) {
 }
 
 function handleFailure(error) {
+  clearTimeout(startupTimer);
   if (error.status === 401 || error.status === 403 || error.code === 'ACCOUNT_CHANGED') {
     halt('unauthorized', '登录已失效或账号已切换，游戏已停止。请重新登录后进入。');
   } else if (error.status === 409) {
     halt('conflict', '另一页面或设备已更新存档。当前游戏已暂停，先下载本次进度备份，再重新载入云端存档。');
   } else {
-    report('error', error.message || '同步失败，请保留此页面并重试。');
+    const message = error.message || '同步失败，请保留此页面并重试。';
+    const conflict = haltReason === 'conflict';
+    report(conflict ? 'conflict' : 'error', conflict ? `游戏仍因存档冲突暂停。${message}` : message);
   }
 }
 
@@ -75,6 +91,7 @@ async function synchronize() {
   async function uploadSnapshot() {
     try {
       const snapshot = await readSnapshot(database, localStorage, preferencePrefix);
+      if (halted) return false;
       const canonical = canonicalSnapshot(snapshot);
       if (canonical === lastSaved) {
         dirty = false;
@@ -84,6 +101,7 @@ async function synchronize() {
       dirty = true;
       report('saving', '正在同步进度…');
       const result = await request({ scope, revision, snapshot });
+      if (halted) return false;
       if (result.scope !== scope) throw new RequestError('账号已切换。', 403);
       revision = result.revision;
       updatedAt = result.updatedAt;
@@ -142,6 +160,7 @@ async function exportBackup() {
       if (error.status !== 0) throw error;
     }
     const snapshot = await readSnapshot(database, localStorage, preferencePrefix);
+    if (haltReason === 'unauthorized') return;
     const document = { game: 'shattered-pixel-dungeon', formatVersion: 1, exportedAt: new Date().toISOString(), revision, snapshot };
     const url = URL.createObjectURL(new Blob([JSON.stringify(document)], { type: 'application/json' }));
     const anchor = window.document.createElement('a');
@@ -154,6 +173,10 @@ async function exportBackup() {
 
 window.addEventListener('message', (event) => {
   if (event.source !== window.parent || event.origin !== window.location.origin || event.data?.channel !== CHANNEL) return;
+  if (event.data.type === 'status-request') {
+    if (namespace) window.parent.postMessage({ channel: CHANNEL, type: 'storage', namespace }, window.location.origin);
+    if (latestStatus) window.parent.postMessage(latestStatus, window.location.origin);
+  }
   if (event.data.type === 'save') void saveNow();
   if (event.data.type === 'export') void exportBackup();
   if (event.data.type === 'save-and-exit') {
@@ -164,6 +187,8 @@ window.addEventListener('message', (event) => {
 });
 
 window.addEventListener('hulinger-game-ready', () => {
+  clearTimeout(startupTimer);
+  if (halted) { window.HulingerDungeon?.pause?.(); return; }
   ready = true;
   loading.hidden = true;
   report('playing', '游戏已就绪，进度会自动同步');
@@ -196,6 +221,9 @@ async function start() {
     lastSaved = canonicalSnapshot(initial.snapshot ?? { files: [], prefs: {} });
     window.parent.postMessage({ channel: CHANNEL, type: 'storage', namespace }, window.location.origin);
     report('loading', '正在加载游戏资源，首次进入需要下载约 74 MB…');
+    startupTimer = setTimeout(() => {
+      if (!ready && !halted) report('error', '游戏加载时间较长，尚未就绪。可以继续等待，或重新载入。');
+    }, 180000);
     const script = document.createElement('script');
     script.src = './app.js';
     await new Promise((resolve, reject) => {
@@ -215,6 +243,7 @@ async function start() {
 }
 
 window.addEventListener('pagehide', () => {
+  clearTimeout(startupTimer);
   clearInterval(heartbeat);
   clearInterval(checkpoint);
   clearTimeout(snapshotTimer);

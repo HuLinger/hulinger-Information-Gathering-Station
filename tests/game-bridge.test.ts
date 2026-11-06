@@ -45,3 +45,27 @@ test('timestamp-only writes do not create new cloud versions but changed file by
   later.files[0].data = 'AQ==';
   assert.notEqual(canonicalSnapshot(snapshot), canonicalSnapshot(later));
 });
+
+test('cloud jsonb preference ordering does not create a false save but preference changes do', () => {
+  const cloud = { files: [], prefs: { 'settings.xml:zoomi': '2', 'settings.xml:languages': 'zh', 'settings.xml:challengesi': '0' } };
+  const browser = { files: [], prefs: { 'settings.xml:challengesi': '0', 'settings.xml:languages': 'zh', 'settings.xml:zoomi': '2' } };
+  assert.equal(canonicalSnapshot(cloud), canonicalSnapshot(browser));
+  browser.prefs['settings.xml:languages'] = 'en';
+  assert.notEqual(canonicalSnapshot(cloud), canonicalSnapshot(browser));
+});
+
+test('file enumeration order is immaterial while path and type changes remain visible', () => {
+  const snapshot = { files: [
+    { path: '/shattered-pixel-dungeon/game1/', type: 1, data: null },
+    { path: '/shattered-pixel-dungeon/game1/game.dat/', type: 2, data: 'AQ==' },
+  ], prefs: {} };
+  const reordered = { files: [...snapshot.files].reverse(), prefs: {} };
+  assert.equal(canonicalSnapshot(snapshot), canonicalSnapshot(reordered));
+  assert.equal(reordered.files[0].type, 2, 'comparison must not reorder the original input');
+  const renamed = structuredClone(snapshot);
+  renamed.files[1].path = '/shattered-pixel-dungeon/game2/game.dat/';
+  assert.notEqual(canonicalSnapshot(snapshot), canonicalSnapshot(renamed));
+  const changedType = structuredClone(snapshot);
+  changedType.files[0] = { ...changedType.files[0], type: 2, data: '' };
+  assert.notEqual(canonicalSnapshot(snapshot), canonicalSnapshot(changedType));
+});

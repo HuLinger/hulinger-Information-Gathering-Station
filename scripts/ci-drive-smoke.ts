@@ -86,7 +86,7 @@ try {
   assert.match(await gameIndex.text(),/bootstrap\.mjs/);
   const initialSave=await (await request(`${gameBase}/save`,{},true)).json() as {scope:string;revision:number};
   const snapshot={formatVersion:1,files:[{path:'/shattered-pixel-dungeon/game1/game.dat/',type:2,data:Buffer.alloc(2*1024*1024,1).toString('base64'),modifiedAt:new Date().toISOString()}],prefs:{}};
-  const gameSaved=await request(`${gameBase}/save`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...initialSave,snapshot})},true);
+  const gameSaved=await request(`${gameBase}/save`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope:initialSave.scope,revision:initialSave.revision,snapshot})},true);
   assert.equal(gameSaved.status,200);
   assert.equal((await gameSaved.json() as {revision:number}).revision,1);
   const restoredGame=await (await request(`${gameBase}/save`,{},true)).json() as {snapshot:typeof snapshot};

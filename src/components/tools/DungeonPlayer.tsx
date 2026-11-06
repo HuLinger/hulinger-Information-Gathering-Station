@@ -31,6 +31,7 @@ export default function DungeonPlayer() {
   const game = useRef<HTMLDivElement>(null);
   const namespace = useRef<string | null>(null);
   const exitRequested = useRef(false);
+  const identityExpired = useRef(false);
   const [status, setStatus] = useState<Status>(initialStatus);
   const [run, setRun] = useState(0);
   const [leaving, setLeaving] = useState(false);
@@ -39,11 +40,13 @@ export default function DungeonPlayer() {
   useEffect(() => {
     function receive(event: MessageEvent) {
       if (event.origin !== location.origin || event.source !== frame.current?.contentWindow || event.data?.channel !== CHANNEL) return;
+      if (identityExpired.current) return;
       const data = event.data;
       if (data.type === 'storage' && typeof data.namespace === 'string') namespace.current = data.namespace;
       if (data.type === 'status' && states.includes(data.state) && typeof data.message === 'string') {
         setStatus({ state: data.state, message: data.message, updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null, dirty: data.dirty === true, ready: data.ready === true });
         if (data.state === 'unauthorized') {
+          identityExpired.current = true;
           discardBrowserRun(namespace.current);
           namespace.current = null;
           exitRequested.current = false;
@@ -63,10 +66,13 @@ export default function DungeonPlayer() {
       }
     }
     window.addEventListener('message', receive);
+    // The frame may report an early load failure before React has hydrated.
+    // Request its latest status after the listener is installed.
+    frame.current?.contentWindow?.postMessage({ channel: CHANNEL, type: 'status-request' }, location.origin);
     return () => { window.removeEventListener('message', receive); discardBrowserRun(namespace.current); };
   }, [modal, router]);
 
-  function command(type: 'save' | 'export' | 'save-and-exit') {
+  function command(type: 'save' | 'export' | 'save-and-exit' | 'status-request') {
     frame.current?.contentWindow?.postMessage({ channel: CHANNEL, type }, location.origin);
   }
   function leave() {
@@ -79,6 +85,7 @@ export default function DungeonPlayer() {
     const restart = () => {
       discardBrowserRun(namespace.current);
       namespace.current = null;
+      identityExpired.current = false;
       setStatus(initialStatus);
       setRun((current) => current + 1);
     };
@@ -111,7 +118,7 @@ export default function DungeonPlayer() {
       {status.updatedAt && <span>上次同步 {new Date(status.updatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>}
     </div>
     {(status.state === 'error' || status.state === 'conflict') && <Alert className={styles.notice} showIcon type={status.state === 'conflict' ? 'warning' : 'error'}
-      title={status.state === 'conflict' ? '存档版本冲突' : '进度尚未同步'} description={status.message}
+      title={status.state === 'conflict' ? '存档版本冲突' : status.ready ? '进度尚未同步' : '游戏尚未载入'} description={status.message}
       action={<Space wrap>
         {status.ready && <Button icon={<DownloadOutlined />} onClick={() => command('export')}>下载进度备份</Button>}
         <Button icon={<ReloadOutlined />} onClick={reload}>重新载入云端</Button>
@@ -119,7 +126,7 @@ export default function DungeonPlayer() {
     {status.state === 'unauthorized'
       ? <div className={styles.empty}><Result status="403" title="请重新登录" subTitle={status.message} extra={<Button type="primary" href="/login">前往登录</Button>} /></div>
       : <div ref={game} className={styles.game}>
-        <iframe key={run} ref={frame} className={styles.frame} title="破碎的像素地牢游戏" src={`${ASSETS}/index.html`}
+        <iframe key={run} ref={frame} className={styles.frame} title="破碎的像素地牢游戏" src={`${ASSETS}/index.html`} onLoad={() => command('status-request')}
           allow="fullscreen" sandbox="allow-scripts allow-same-origin allow-downloads" />
       </div>}
     <Modal open={help} title="操作与存档" footer={<Button onClick={() => setHelp(false)}>知道了</Button>} onCancel={() => setHelp(false)}>

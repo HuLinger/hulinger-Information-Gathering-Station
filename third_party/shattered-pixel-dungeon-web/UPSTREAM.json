@@ -9,7 +9,7 @@
   "originalTrackedBytes": 84331574,
   "localChanges": [
     "WebLauncher.java: account/run-specific IndexedDB and preference namespaces",
-    "WebShatteredPixelDungeon.java: completed-save events and host pause/save controls",
+    "WebShatteredPixelDungeon.java: completed-save events, host pause/save controls, and defer canvas resize until a stable turn",
     "web/build.gradle: working directory for isolated Web build",
     "web-build/build.gradle and web-build/settings.gradle: isolated browser build",
     "Host integration sources: src/game/shattered-pixel-dungeon and scripts/build-game.mjs"

@@ -48,10 +48,15 @@ export function canonicalSnapshot(snapshot) {
   // those timestamps when detecting changes; retain them in the saved payload.
   return JSON.stringify({
     formatVersion: 1,
-    files: snapshot.files.map(({ path, type, data }) => ({ path, type, data })),
-    prefs: snapshot.prefs,
+    files: snapshot.files.map(({ path, type, data }) => ({ path, type, data }))
+      .sort((left, right) => compareKeys(left.path, right.path)),
+    // PostgreSQL jsonb does not preserve object key order. A restored snapshot
+    // must compare equal to the same browser preferences after hydration.
+    prefs: Object.fromEntries(Object.entries(snapshot.prefs).sort(([left], [right]) => compareKeys(left, right))),
   });
 }
+
+function compareKeys(left, right) { return left < right ? -1 : left > right ? 1 : 0; }
 
 export function openDatabase(name) {
   return new Promise((resolve, reject) => {
