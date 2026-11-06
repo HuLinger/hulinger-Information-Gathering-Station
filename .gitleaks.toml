@@ -20,3 +20,12 @@ id = "generic-api-key"
     '''^\n?[ \t]*this\.otherBoundKey1[ \t]*=[ \t]*otherBoundKey1;[ \t]*\r?$''',
     '''^\n?[ \t]*this\.otherBoundKey2[ \t]*=[ \t]*otherBoundKey2;[ \t]*\r?$''',
   ]
+
+  # Public SHA-256 of the unchanged LibNCM source, not an API credential.
+  # Require the exact manifest path, source filename and fixed 64-character hash.
+  [[rules.allowlists]]
+  description = "Pinned public LibNCM KeyBoxCipher source checksum"
+  condition = "AND"
+  paths = ['''^integrations/conversion/ncmdump/upstream\.json$''']
+  regexTarget = "line"
+  regexes = ['''^\n?[ \t]*"LibNCM/KeyBoxCipher\.cs": "3ac01f3f98a59212613f3b696c6c7934f78d6d37dba50328065e3c89c8e5a6c7",[ \t]*\r?$''']

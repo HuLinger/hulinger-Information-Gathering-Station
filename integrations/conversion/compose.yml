@@ -1,0 +1,183 @@
+name: hulinger-conversion
+
+x-engine-defaults: &engine-defaults
+  restart: unless-stopped
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - conversion
+  stop_grace_period: 30s
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  gateway:
+    <<: *engine-defaults
+    image: caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
+    user: "1000:1000"
+    cpus: 0.5
+    mem_limit: 128m
+    memswap_limit: 128m
+    pids_limit: 64
+    networks:
+      - conversion
+      - access
+    ports:
+      - "127.0.0.1:8091:8091"
+      - "127.0.0.1:8092:8092"
+      - "127.0.0.1:8093:8093"
+      - "127.0.0.1:8094:8094"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    tmpfs:
+      - /data:size=16m,uid=1000,gid=1000,mode=0700,nosuid,nodev
+      - /config:size=16m,uid=1000,gid=1000,mode=0700,nosuid,nodev
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--spider",
+          "http://127.0.0.1:8090/__gateway_health",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  convertx:
+    <<: *engine-defaults
+    image: ghcr.io/c4illin/convertx:v0.20.0@sha256:6259e0c1e063120b1ddbc6937372a83be58182b2c9dc82264f58e100907b3e51
+    init: true
+    user: "1000:1000"
+    cpus: 2.0
+    mem_limit: 4g
+    memswap_limit: 4g
+    pids_limit: 512
+    environment:
+      JWT_SECRET: ${CONVERTX_JWT_SECRET:?Run node scripts/setup-converters.mjs first}
+      ALLOW_UNAUTHENTICATED: "true"
+      UNAUTHENTICATED_USER_SHARING: "false"
+      HTTP_ALLOWED: "true"
+      ACCOUNT_REGISTRATION: "false"
+      AUTO_DELETE_EVERY_N_HOURS: "1"
+      MAX_CONVERT_PROCESS: "1"
+      HOME: /home/convertx
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+    tmpfs:
+      - /app/data:size=3g,uid=1000,gid=1000,mode=0700,nosuid,nodev
+      - /tmp:size=512m,mode=1777,nosuid,nodev
+      - /home/convertx:size=128m,uid=1000,gid=1000,mode=0700,nosuid,nodev
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "--fail",
+          "--silent",
+          "--max-time",
+          "4",
+          "http://127.0.0.1:3000/healthcheck",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+
+  transmute:
+    <<: *engine-defaults
+    image: ghcr.io/transmute-app/transmute:2.1.1@sha256:87b669d835d9e68bdbc4082ab061cb361cd3ecee69c14ccfa9a3814d326b6707
+    init: true
+    cpus: 2.0
+    mem_limit: 4g
+    memswap_limit: 4g
+    pids_limit: 512
+    shm_size: 128m
+    environment:
+      AUTH_SECRET_KEY: ${TRANSMUTE_AUTH_SECRET_KEY:?Run node scripts/setup-converters.mjs first}
+      ALLOW_UNAUTHENTICATED: "false"
+      DATA_DIR: /app/data
+      CONVERSION_WORKER_CONCURRENCY: "1"
+      COMPRESSION_WORKER_CONCURRENCY: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      ORT_DISABLE_TELEMETRY: "1"
+    volumes:
+      - transmute-db:/app/data/db
+    tmpfs:
+      - /app/data:size=3g,mode=0700,nosuid,nodev
+      - /tmp:size=512m,mode=1777,nosuid,nodev
+      - /root:size=128m,mode=0700,nosuid,nodev
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3313/api/health/ready', timeout=4)",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  stirling:
+    <<: *engine-defaults
+    image: hulinger-stirling-core:3.3.0
+    build:
+      context: ./stirling
+    cpus: 2.0
+    mem_limit: 6g
+    memswap_limit: 6g
+    pids_limit: 256
+    environment:
+      SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 512MB
+      SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 520MB
+      JAVA_TOOL_OPTIONS: -Xmx2g
+      UNO_CONVERSION_TIMEOUT_SECONDS: "120"
+    tmpfs:
+      - /tmp:size=3g,mode=1777,nosuid,nodev
+      - /work:size=128m,uid=1000,gid=1000,mode=0700,nosuid,nodev
+      - /home/stirlingpdfuser:size=64m,uid=1000,gid=1000,mode=0700,nosuid,nodev
+
+  ncmdump:
+    <<: *engine-defaults
+    image: hulinger-ncm-gateway:2.0.1
+    build:
+      context: ./ncmdump
+    init: true
+    cpus: 1.0
+    mem_limit: 2g
+    memswap_limit: 2g
+    pids_limit: 128
+    environment:
+      NCM_MAX_FILE_BYTES: "536870912"
+      NCM_TIMEOUT_SECONDS: "300"
+      NCM_TEMP_ROOT: /tmp/hulinger-ncm
+    tmpfs:
+      - /tmp:size=1280m,mode=1777,nosuid,nodev
+    healthcheck:
+      test: ["CMD", "dotnet", "NcmGateway.dll", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+networks:
+  conversion:
+    internal: true
+  access:
+
+volumes:
+  transmute-db:
+    labels:
+      org.hulinger.conversion.purpose: transmute-accounts-and-settings

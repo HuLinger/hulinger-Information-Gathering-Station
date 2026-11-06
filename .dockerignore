@@ -33,3 +33,7 @@ compose.override.yaml
 .games
 **/.gradle
 **/build
+!integrations/conversion/ncmdump/vendor/build
+!integrations/conversion/ncmdump/vendor/build/Roots.xml
+**/bin
+**/obj

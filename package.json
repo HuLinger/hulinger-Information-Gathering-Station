@@ -1,6 +1,6 @@
 {
   "name": "hulinger-information-hub",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "description": "Hulinger private AI information hub with scheduled collection and Docker self-hosting.",
   "type": "module",
@@ -13,7 +13,7 @@
     "check:repo": "node scripts/check-repository.mjs",
     "check:staged": "node scripts/check-repository.mjs --staged",
     "dev": "next dev --hostname 127.0.0.1",
-    "build": "npm run build:game && next build",
+    "build": "npm run build:game && next build && node scripts/verify-standalone.mjs",
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

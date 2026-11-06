@@ -38,7 +38,8 @@ async function runtimeRoles(client: PoolClient, roles: RuntimeRoles) {
     GRANT SELECT, INSERT ON login_events, account_management_events TO ${app};
     GRANT SELECT, INSERT, UPDATE, DELETE ON
       entities, events, sources, source_records, sync_runs, snapshots,
-      revisions, merge_operations, app_settings, account_settings, worker_heartbeats, export_jobs, game_saves, drive_files, drive_parts TO ${worker};
+      revisions, merge_operations, app_settings, account_settings, worker_heartbeats, export_jobs, game_saves, drive_files, drive_parts,
+      conversion_uploads, conversion_jobs, conversion_outputs TO ${worker};
     GRANT SELECT ON separate_records TO ${worker};
     GRANT SELECT ON member_accounts TO ${worker};
     GRANT DELETE ON login_events, account_management_events TO ${worker};

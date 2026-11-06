@@ -2,13 +2,13 @@
 
 给自己使用的私有 AI 信息集合工具：自动收集公开模型公告与 GitHub 开源项目，保留可核验来源，在电脑和手机上阅读、查找、整理和导出。
 
-**当前版本：0.3.1，修复地牢探索时的地图覆盖。** 提供源码、数据库迁移、Windows 候选更新工具和 Docker Compose 部署手册。公开代码仓库为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)。所有业务登录后使用，admin 保留 MFA，成员使用用户名和密码登录。此版本尚未在用户现有 Windows 服务器部署；升级验证、异地备份及告警按 [上线门禁](docs/production-readiness.md) 落实。
+**当前版本：0.4.0，新增统一中文格式转换工具。** 提供源码、数据库迁移、Windows 候选更新工具和 Docker Compose 部署手册。公开代码仓库为 [HuLinger/hulinger-Information-Gathering-Station](https://github.com/HuLinger/hulinger-Information-Gathering-Station)。所有业务登录后使用，admin 保留 MFA，成员使用用户名和密码登录。此版本尚未在用户现有 Windows 服务器部署；升级验证、异地备份及告警按 [上线门禁](docs/production-readiness.md) 落实。
 
 ## 最新更新
 
 ### 2026-11-06
 
-新增“小工具”卡片和破碎的像素地牢 Web 游戏，提供账号独立的云端存档与二次开发源码；admin 可管理成员和查看登录记录。每个账号独立使用资讯、来源、整理、云盘和导出，新成员不继承主账号内容。补齐游戏横竖屏切换、加载等待与存档冲突提示，并修复同层探索时房间地形覆盖、楼梯被遮住的画面错误，现有存档可继续使用。详情见 [发布说明](docs/releases/release-notes.md)、[变更记录](CHANGELOG.md) 和 [游戏二次开发](docs/development/shattered-pixel-dungeon.md)。
+新增中文格式转换卡片，整合 ConvertX、Transmute、Stirling-PDF 与 NCM 音乐转换；已上传文件可直接切换合适引擎，后台完成后下载，默认保留 24 小时。提供 Docker / WSL2 引擎初始化流程。同日更新还包含账号独立的破碎的像素地牢存档、成员管理与地图覆盖修复。详情见 [发布说明](docs/releases/release-notes.md)、[变更记录](CHANGELOG.md) 和 [转换工具安装](integrations/conversion/README.md)。
 
 [小工具桌面截图](docs/verification/images/tools/tools-1440x900.jpg) · [账号与工具交互验收](docs/verification/tools-ui-validation.md) · [0.3.0 检查记录](docs/verification/v0.3-validation.md) · [0.3.1 地图修复验证](docs/verification/game-rendering-fix-validation.md)
 
@@ -22,6 +22,7 @@
 - **私有访问**：关闭公开注册；主账号密码与验证器双重认证、一次性恢复码；主账号创建成员，成员密码登录，所有业务按账号服务端授权。
 - **账号管理**：admin 创建、修改显示名、停用/启用成员、重置成员密码、撤销会话和查看脱敏登录记录。
 - **小工具与游戏**：卡片进入破碎的像素地牢，支持电脑和手机；进度保存在当前账号，跨设备更新采用版本比较，网络失败显示未同步。
+- **格式转换**：中文统一上传、目标格式、自动推荐或手选引擎、后台任务、下载和清理。源文件可复用，账号数据独立，默认完成后保留 24 小时；安装引擎后启用。
 - **私有云盘**：大文件分片上传、暂停续传、速度与进度显示、可调并发、文件搜索与重命名、30 天回收站。支持普通下载；提供文件保存接口的浏览器还支持校验后的并行下载与页面内暂停/继续。
 
 当前不提供公共社区、账号间资料共享、任意 URL 抓取、全文镜像或数据导入。云盘文件独立管理，不执行、解压或在线预览，不提供匿名分享。摘要来自公开来源及人工整理，未接入付费 AI 生成。GitHub 排序是本站观测范围内的数据，不是官方全站榜单；没有足够真实快照时不虚构增长。

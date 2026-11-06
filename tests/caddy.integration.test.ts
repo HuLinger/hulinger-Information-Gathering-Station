@@ -103,6 +103,11 @@ test('Caddy authorizes every file response, strips forged headers and streams Ra
     const gameSave=await fetch(`${base}/api/tools/shattered-pixel-dungeon/save`,{method:'PUT',body});
     assert.equal(gameSave.status,200);
     assert.equal(await gameSave.text(),String(body.length));
+    const conversion = await fetch(`${base}/api/tools/conversion/uploads/${id}/content`, { method: 'PUT', body });
+    assert.equal(conversion.status, 200);
+    assert.equal(await conversion.text(), String(body.length));
+    assert.equal((await fetch(`${base}/api/tools/conversion/uploads/${id}/content`, { method: 'POST', body })).status, 413);
+    assert.equal((await fetch(`${base}/api/tools/conversion/jobs`, { method: 'POST', body })).status, 413);
     assert.equal((await fetch(`${base}/api/tools/shattered-pixel-dungeon/save`,{method:'PUT',body:Buffer.alloc(33*1024*1024)})).status,413);
     assert.equal((await fetch(`${base}/api/tools/shattered-pixel-dungeon/save`,{method:'POST',body})).status,413);
     assert.equal((await fetch(`${base}/api/hub`, { method: 'POST', body })).status, 413);

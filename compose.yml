@@ -65,8 +65,15 @@ services:
       DRIVE_RESERVE_BYTES: ${DRIVE_RESERVE_BYTES:-1073741824}
       DRIVE_MAX_PARALLEL: ${DRIVE_MAX_PARALLEL:-8}
       DRIVE_CHUNK_BYTES: ${DRIVE_CHUNK_BYTES:-16777216}
+      CONVERSION_STORAGE_PATH: /data/conversion
+      CONVERSION_MAX_INPUT_BYTES: ${CONVERSION_MAX_INPUT_BYTES:-536870912}
+      CONVERSION_MAX_OUTPUT_BYTES: ${CONVERSION_MAX_OUTPUT_BYTES:-1073741824}
+      CONVERSION_ACCOUNT_QUOTA_BYTES: ${CONVERSION_ACCOUNT_QUOTA_BYTES:-5368709120}
+      CONVERSION_RESERVE_BYTES: ${CONVERSION_RESERVE_BYTES:-1073741824}
+      CONVERSION_TIMEOUT_SECONDS: ${CONVERSION_TIMEOUT_SECONDS:-900}
     volumes:
       - drive_files:/data/drive
+      - conversion_files:/data/conversion
     depends_on:
       migrate: {condition: service_completed_successfully}
     stop_grace_period: 45s
@@ -91,8 +98,15 @@ services:
       DRIVE_RESERVE_BYTES: ${DRIVE_RESERVE_BYTES:-1073741824}
       DRIVE_MAX_PARALLEL: ${DRIVE_MAX_PARALLEL:-8}
       DRIVE_CHUNK_BYTES: ${DRIVE_CHUNK_BYTES:-16777216}
+      CONVERSION_STORAGE_PATH: /data/conversion
+      CONVERSION_MAX_INPUT_BYTES: ${CONVERSION_MAX_INPUT_BYTES:-536870912}
+      CONVERSION_MAX_OUTPUT_BYTES: ${CONVERSION_MAX_OUTPUT_BYTES:-1073741824}
+      CONVERSION_ACCOUNT_QUOTA_BYTES: ${CONVERSION_ACCOUNT_QUOTA_BYTES:-5368709120}
+      CONVERSION_RESERVE_BYTES: ${CONVERSION_RESERVE_BYTES:-1073741824}
+      CONVERSION_TIMEOUT_SECONDS: ${CONVERSION_TIMEOUT_SECONDS:-900}
     volumes:
       - drive_files:/data/drive
+      - conversion_files:/data/conversion
     depends_on:
       migrate: {condition: service_completed_successfully}
       worker: {condition: service_healthy}
@@ -143,3 +157,4 @@ volumes:
   caddy_data:
   caddy_config:
   drive_files:
+  conversion_files:

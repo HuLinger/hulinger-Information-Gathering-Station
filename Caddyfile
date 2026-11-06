@@ -21,6 +21,14 @@
     method PUT
     path /api/tools/shattered-pixel-dungeon/save
   }
+  @conversion_upload {
+    method PUT
+    path_regexp conversion_upload ^/api/tools/conversion/uploads/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/content$
+  }
+  @conversion_download {
+    method GET HEAD
+    path_regexp conversion_download ^/api/tools/conversion/outputs/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+  }
   route {
     handle @download {
       route {
@@ -58,6 +66,19 @@
       request_body {
         max_size 32MiB
       }
+      reverse_proxy web:3000 {
+        header_up X-Forwarded-For {remote_host}
+      }
+    }
+    handle @conversion_upload {
+      request_body {
+        max_size 512MiB
+      }
+      reverse_proxy web:3000 {
+        header_up X-Forwarded-For {remote_host}
+      }
+    }
+    handle @conversion_download {
       reverse_proxy web:3000 {
         header_up X-Forwarded-For {remote_host}
       }

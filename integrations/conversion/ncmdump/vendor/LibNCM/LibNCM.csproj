@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>LibNCM</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <Platforms>AnyCPU</Platforms>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+    <Authors>xiSage</Authors>
+    <RepositoryUrl>https://github.com/xiSage/ncmdump-net</RepositoryUrl>
+    <AssemblyVersion>2.0.0</AssemblyVersion>
+    <FileVersion>2.0.0</FileVersion>
+    <PackageId>xiSage.LibNCM</PackageId>
+    <Version>2.0.0</Version>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>embedded</DebugType>
+    <IsTrimmable>True</IsTrimmable>
+    <IsAotCompatible>True</IsAotCompatible>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>embedded</DebugType>
+    <IsTrimmable>True</IsTrimmable>
+    <IsAotCompatible>True</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Properties\PublishProfiles\**" />
+    <EmbeddedResource Remove="Properties\PublishProfiles\**" />
+    <None Remove="Properties\PublishProfiles\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="Properties\launchSettings.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <TrimmerRootDescriptor Include="..\build\Roots.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Ncm.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="TagLibSharp" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="bin\" />
+    <Folder Include="Properties\" />
+  </ItemGroup>
+</Project>

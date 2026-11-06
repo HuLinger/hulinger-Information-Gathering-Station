@@ -9,7 +9,7 @@ export function getDrive(): DriveStore {
   if (!runtime.hubDriveStore) {
     const config = readDriveConfig();
     runtime.hubDriveUploadPool ??= new Pool({ connectionString: process.env.DATABASE_URL, max: config.maxParallel + 2, connectionTimeoutMillis: 5000 });
-    runtime.hubDriveStore = new DriveStore({ database: pool, uploadDatabase: runtime.hubDriveUploadPool, root: process.env.DRIVE_STORAGE_PATH ?? resolve('data/drive'), config });
+    runtime.hubDriveStore = new DriveStore({ database: pool, uploadDatabase: runtime.hubDriveUploadPool, root: process.env.DRIVE_STORAGE_PATH ?? resolve(/* turbopackIgnore: true */ 'data/drive'), config });
   }
   return runtime.hubDriveStore;
 }
